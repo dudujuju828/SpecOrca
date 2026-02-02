@@ -60,7 +60,6 @@ select = [
     "A",      # flake8-builtins
     "C4",     # flake8-comprehensions
     "SIM",    # flake8-simplify
-    "TCH",    # flake8-type-checking
     "RUF",    # ruff-specific
 ]
 
