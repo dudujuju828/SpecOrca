@@ -119,7 +119,7 @@ class TestRunSubcommand:
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setenv("spec_orca_BACKEND", "mock")
+        monkeypatch.setenv("SPEC_ORCA_BACKEND", "mock")
         md = tmp_path / "spec.md"
         md.write_text("# Env Test\nDo it.\n", encoding="utf-8")
 

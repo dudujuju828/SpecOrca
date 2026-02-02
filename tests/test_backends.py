@@ -40,15 +40,15 @@ def _make_instruction(step_index: int = 0, prompt: str = "do something") -> Inst
 
 class TestResolveBackendName:
     def test_cli_flag_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("spec_orca_BACKEND", "claude")
+        monkeypatch.setenv("SPEC_ORCA_BACKEND", "claude")
         assert resolve_backend_name("mock") == "mock"
 
     def test_env_var_used_when_no_cli(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("spec_orca_BACKEND", "claude")
+        monkeypatch.setenv("SPEC_ORCA_BACKEND", "claude")
         assert resolve_backend_name(None) == "claude"
 
     def test_default_when_nothing_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("spec_orca_BACKEND", raising=False)
+        monkeypatch.delenv("SPEC_ORCA_BACKEND", raising=False)
         assert resolve_backend_name(None) == "mock"
 
     def test_unknown_name_raises(self) -> None:
