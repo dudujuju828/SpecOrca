@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/specorca.png" alt="SpecOrca logo" width="200">
+</p>
+
 # spec-orchestrator
 
 [![CI](https://github.com/anthropics/spec-orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/anthropics/spec-orchestrator/actions/workflows/ci.yml)
