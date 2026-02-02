@@ -27,5 +27,72 @@ classifiers = [
 [project.scripts]
 spec-orchestrator = "spec_orchestrator.cli:main"
 
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "coverage[toml]>=7.4",
+    "pre-commit>=4.0",
+    "nox>=2024.4",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# ---------------------------------------------------------------------------
+# Ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+src = ["src"]
+target-version = "py311"
+line-length = 99
+
+[tool.ruff.lint]
+select = [
+    "F",      # pyflakes
+    "E", "W", # pycodestyle
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "RUF",    # ruff-specific
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["spec_orchestrator"]
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+packages = ["spec_orchestrator"]
+mypy_path = ["src"]
+
+# ---------------------------------------------------------------------------
+# Pytest / Coverage
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--cov=spec_orchestrator",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+]
+
+[tool.coverage.run]
+source = ["spec_orchestrator"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
