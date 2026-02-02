@@ -32,10 +32,14 @@ from spec_orca.backends import (
 )
 from spec_orca.loader import load_spec
 from spec_orca.models import (
+    Context,
     Instruction,
     OrchestratorState,
+    Result,
+    ResultStatus,
     Spec,
     SpecFormat,
+    SpecStatus,
     StepResult,
     StepStatus,
 )
@@ -48,13 +52,17 @@ __all__ = [
     "ArchitectProtocol",
     "ClaudeBackend",
     "ClaudeCodeNotFoundError",
+    "Context",
     "EchoBackend",
     "Instruction",
     "MockBackend",
     "OrchestratorState",
+    "Result",
+    "ResultStatus",
     "SimpleArchitect",
     "Spec",
     "SpecFormat",
+    "SpecStatus",
     "StepResult",
     "StepStatus",
     "__version__",

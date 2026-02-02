@@ -13,19 +13,27 @@ warnings.warn(
 )
 
 from spec_orca.models import (
+    Context,
     Instruction,
     OrchestratorState,
+    Result,
+    ResultStatus,
     Spec,
     SpecFormat,
+    SpecStatus,
     StepResult,
     StepStatus,
 )
 
 __all__ = [
+    "Context",
     "Instruction",
     "OrchestratorState",
+    "Result",
+    "ResultStatus",
     "Spec",
     "SpecFormat",
+    "SpecStatus",
     "StepResult",
     "StepStatus",
 ]
