@@ -26,6 +26,8 @@ classifiers = [
 
 [project.scripts]
 spec-orca = "spec_orca.cli:main"
+# Deprecated alias (will be removed in a future release)
+spec-orchestrator = "spec_orca._deprecated_cli:main"
 
 [project.optional-dependencies]
 dev = [
