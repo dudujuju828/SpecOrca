@@ -9,15 +9,15 @@ from unittest import mock
 
 import pytest
 
-from spec_orchestrator.backends import (
+from spec_orca.backends import (
     ClaudeBackend,
     ClaudeCodeNotFoundError,
     MockBackend,
     create_backend,
     resolve_backend_name,
 )
-from spec_orchestrator.models import Instruction, Spec, SpecFormat, StepStatus
-from spec_orchestrator.protocols import AgentBackendProtocol
+from spec_orca.models import Instruction, Spec, SpecFormat, StepStatus
+from spec_orca.protocols import AgentBackendProtocol
 
 # -- helpers ----------------------------------------------------------------
 
@@ -40,15 +40,15 @@ def _make_instruction(step_index: int = 0, prompt: str = "do something") -> Inst
 
 class TestResolveBackendName:
     def test_cli_flag_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SPEC_ORCHESTRATOR_BACKEND", "claude")
+        monkeypatch.setenv("spec_orca_BACKEND", "claude")
         assert resolve_backend_name("mock") == "mock"
 
     def test_env_var_used_when_no_cli(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SPEC_ORCHESTRATOR_BACKEND", "claude")
+        monkeypatch.setenv("spec_orca_BACKEND", "claude")
         assert resolve_backend_name(None) == "claude"
 
     def test_default_when_nothing_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("SPEC_ORCHESTRATOR_BACKEND", raising=False)
+        monkeypatch.delenv("spec_orca_BACKEND", raising=False)
         assert resolve_backend_name(None) == "mock"
 
     def test_unknown_name_raises(self) -> None:

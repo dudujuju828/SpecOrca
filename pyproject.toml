@@ -3,16 +3,16 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spec-orchestrator"
+name = "spec-orca"
 version = "0.1.0"
-description = "A spec-driven two-role orchestrator (Architect / Agent) with swappable coding backends."
+description = "SpecOrca — a spec-driven two-role orchestrator (Architect / Agent) with swappable coding backends."
 requires-python = ">=3.11"
 license = "MIT"
 authors = [
-    { name = "spec-orchestrator contributors" },
+    { name = "SpecOrca contributors" },
 ]
 readme = "README.md"
-keywords = ["orchestrator", "architect", "agent", "cli"]
+keywords = ["orchestrator", "architect", "agent", "cli", "specorca"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -25,7 +25,7 @@ classifiers = [
 ]
 
 [project.scripts]
-spec-orchestrator = "spec_orchestrator.cli:main"
+spec-orca = "spec_orca.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -64,7 +64,7 @@ select = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["spec_orchestrator"]
+known-first-party = ["spec_orca"]
 
 # ---------------------------------------------------------------------------
 # Mypy
@@ -74,7 +74,7 @@ python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
-packages = ["spec_orchestrator"]
+packages = ["spec_orca"]
 mypy_path = ["src"]
 
 # ---------------------------------------------------------------------------
@@ -84,13 +84,13 @@ mypy_path = ["src"]
 testpaths = ["tests"]
 addopts = [
     "--strict-markers",
-    "--cov=spec_orchestrator",
+    "--cov=spec_orca",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
 ]
 
 [tool.coverage.run]
-source = ["spec_orchestrator"]
+source = ["spec_orca"]
 
 [tool.coverage.report]
 show_missing = true

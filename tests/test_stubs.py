@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spec_orchestrator.models import (
+from spec_orca.models import (
     OrchestratorState,
     Spec,
     SpecFormat,
     StepResult,
     StepStatus,
 )
-from spec_orchestrator.stubs import EchoBackend, SimpleArchitect
+from spec_orca.stubs import EchoBackend, SimpleArchitect
 
 
 def _make_spec() -> Spec:
@@ -81,7 +81,7 @@ class TestEchoBackend:
     def test_returns_success(self) -> None:
         backend = EchoBackend()
         spec = _make_spec()
-        from spec_orchestrator.models import Instruction
+        from spec_orca.models import Instruction
 
         instr = Instruction(spec=spec, step_index=0, prompt="do something")
 
@@ -93,7 +93,7 @@ class TestEchoBackend:
     def test_echoes_prompt(self) -> None:
         backend = EchoBackend()
         spec = _make_spec()
-        from spec_orchestrator.models import Instruction
+        from spec_orca.models import Instruction
 
         instr = Instruction(spec=spec, step_index=1, prompt="build widgets")
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from spec_orchestrator.protocols import AgentBackendProtocol, ArchitectProtocol
-from spec_orchestrator.stubs import EchoBackend, SimpleArchitect
+from spec_orca.protocols import AgentBackendProtocol, ArchitectProtocol
+from spec_orca.stubs import EchoBackend, SimpleArchitect
 
 
 class TestProtocolConformance:

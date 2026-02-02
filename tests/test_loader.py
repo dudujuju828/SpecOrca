@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from spec_orchestrator.loader import load_spec
-from spec_orchestrator.models import SpecFormat
+from spec_orca.loader import load_spec
+from spec_orca.models import SpecFormat
 
 
 class TestLoadSpec:

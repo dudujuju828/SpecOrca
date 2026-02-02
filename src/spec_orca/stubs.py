@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from spec_orchestrator.models import (
+from spec_orca.models import (
     Instruction,
     OrchestratorState,
     StepResult,

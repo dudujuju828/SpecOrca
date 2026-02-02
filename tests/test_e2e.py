@@ -1,6 +1,6 @@
 """End-to-end CLI tests using subprocess (no in-process imports).
 
-These tests invoke ``spec-orchestrator`` as a child process to verify the
+These tests invoke ``spec-orca`` as a child process to verify the
 full installed entry-point behaviour, including argument parsing, spec loading,
 backend execution, and output formatting.
 """
@@ -15,9 +15,9 @@ import pytest
 
 
 def _run_cli(*args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
-    """Run spec-orchestrator as a subprocess via ``python -m spec_orchestrator.cli``."""
+    """Run spec-orca as a subprocess via ``python -m spec_orca.cli``."""
     return subprocess.run(
-        [sys.executable, "-m", "spec_orchestrator.cli", *args],
+        [sys.executable, "-m", "spec_orca.cli", *args],
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -28,7 +28,7 @@ class TestE2EHelp:
     def test_help(self) -> None:
         proc = _run_cli("--help")
         assert proc.returncode == 0
-        assert "spec-orchestrator" in proc.stdout
+        assert "spec-orca" in proc.stdout
 
     def test_version(self) -> None:
         proc = _run_cli("--version")

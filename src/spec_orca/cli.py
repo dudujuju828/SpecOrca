@@ -1,4 +1,4 @@
-"""Command-line interface for spec-orchestrator."""
+"""Command-line interface for SpecOrca."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from spec_orchestrator import __version__
+from spec_orca import __version__
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="spec-orchestrator",
-        description="A spec-driven two-role orchestrator (Architect / Agent).",
+        prog="spec-orca",
+        description="SpecOrca — a spec-driven two-role orchestrator (Architect / Agent).",
     )
     parser.add_argument(
         "--version",
@@ -41,9 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         choices=["claude", "mock"],
         help=(
-            "Backend to use for execution. "
-            "Overrides the SPEC_ORCHESTRATOR_BACKEND env var. "
-            "Default: mock."
+            "Backend to use for execution. Overrides the SPEC_ORCA_BACKEND env var. Default: mock."
         ),
     )
     run_parser.add_argument(
@@ -77,14 +75,14 @@ def _run_command(
     commit_prefix: str | None,
 ) -> int:
     """Execute the 'run' subcommand."""
-    from spec_orchestrator.backends import (
+    from spec_orca.backends import (
         ClaudeCodeNotFoundError,
         create_backend,
         resolve_backend_name,
     )
-    from spec_orchestrator.loader import load_spec
-    from spec_orchestrator.orchestrator import run_loop
-    from spec_orchestrator.stubs import SimpleArchitect
+    from spec_orca.loader import load_spec
+    from spec_orca.orchestrator import run_loop
+    from spec_orca.stubs import SimpleArchitect
 
     try:
         spec = load_spec(spec_path)
@@ -112,10 +110,10 @@ def _run_command(
 
     # -- optional auto-commit -----------------------------------------------
     if auto_commit:
-        from spec_orchestrator.dev.git import GitError
-        from spec_orchestrator.dev.git import auto_commit as do_commit
+        from spec_orca.dev.git import GitError
+        from spec_orca.dev.git import auto_commit as do_commit
 
-        commit_msg = f"spec-orchestrator run: {spec.title}"
+        commit_msg = f"spec-orca run: {spec.title}"
         try:
             committed = do_commit(commit_msg, prefix=commit_prefix)
             if committed:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spec_orchestrator.models import (
+from spec_orca.models import (
     Instruction,
     OrchestratorState,
     Spec,
@@ -12,8 +12,8 @@ from spec_orchestrator.models import (
     StepResult,
     StepStatus,
 )
-from spec_orchestrator.orchestrator import run_loop
-from spec_orchestrator.stubs import EchoBackend, SimpleArchitect
+from spec_orca.orchestrator import run_loop
+from spec_orca.stubs import EchoBackend, SimpleArchitect
 
 
 def _make_spec() -> Spec:

@@ -1,4 +1,4 @@
-"""Tests for the spec-orchestrator CLI."""
+"""Tests for the SpecOrca CLI."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ from unittest import mock
 
 import pytest
 
-from spec_orchestrator import __version__
-from spec_orchestrator.cli import build_parser, main
+from spec_orca import __version__
+from spec_orca.cli import build_parser, main
 
 
 class TestBuildParser:
     def test_returns_parser(self) -> None:
         parser = build_parser()
-        assert parser.prog == "spec-orchestrator"
+        assert parser.prog == "spec-orca"
 
     def test_version_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit, match="0"):
@@ -48,7 +48,7 @@ class TestMain:
     def test_help_printed_by_default(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = main([])
         assert rc == 0
-        assert "spec-orchestrator" in capsys.readouterr().out
+        assert "spec-orca" in capsys.readouterr().out
 
     def test_returns_zero(self) -> None:
         assert main([]) == 0
@@ -119,7 +119,7 @@ class TestRunSubcommand:
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setenv("SPEC_ORCHESTRATOR_BACKEND", "mock")
+        monkeypatch.setenv("spec_orca_BACKEND", "mock")
         md = tmp_path / "spec.md"
         md.write_text("# Env Test\nDo it.\n", encoding="utf-8")
 
@@ -150,7 +150,7 @@ class TestRunAutoCommit:
         md = tmp_path / "spec.md"
         md.write_text("# Test\nDo it.\n", encoding="utf-8")
 
-        with mock.patch("spec_orchestrator.dev.git.auto_commit", return_value=False):
+        with mock.patch("spec_orca.dev.git.auto_commit", return_value=False):
             rc = main(["run", "--spec", str(md), "--auto-commit"])
 
         assert rc == 0
@@ -160,7 +160,7 @@ class TestRunAutoCommit:
         md = tmp_path / "spec.md"
         md.write_text("# Test\nDo it.\n", encoding="utf-8")
 
-        with mock.patch("spec_orchestrator.dev.git.auto_commit", return_value=True):
+        with mock.patch("spec_orca.dev.git.auto_commit", return_value=True):
             rc = main(["run", "--spec", str(md), "--auto-commit"])
 
         assert rc == 0
@@ -172,7 +172,7 @@ class TestRunAutoCommit:
         md = tmp_path / "spec.md"
         md.write_text("# Feat\nDo it.\n", encoding="utf-8")
 
-        with mock.patch("spec_orchestrator.dev.git.auto_commit", return_value=True) as mocked:
+        with mock.patch("spec_orca.dev.git.auto_commit", return_value=True) as mocked:
             rc = main(
                 [
                     "run",
@@ -192,13 +192,13 @@ class TestRunAutoCommit:
     def test_auto_commit_git_error_returns_1(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        from spec_orchestrator.dev.git import GitError
+        from spec_orca.dev.git import GitError
 
         md = tmp_path / "spec.md"
         md.write_text("# Test\nDo it.\n", encoding="utf-8")
 
         with mock.patch(
-            "spec_orchestrator.dev.git.auto_commit",
+            "spec_orca.dev.git.auto_commit",
             side_effect=GitError("not a git repo"),
         ):
             rc = main(["run", "--spec", str(md), "--auto-commit"])
@@ -213,7 +213,7 @@ class TestRunAutoCommit:
         md = tmp_path / "spec.md"
         md.write_text("# Test\nDo it.\n", encoding="utf-8")
 
-        with mock.patch("spec_orchestrator.dev.git.auto_commit") as mocked:
+        with mock.patch("spec_orca.dev.git.auto_commit") as mocked:
             rc = main(["run", "--spec", str(md)])
 
         assert rc == 0

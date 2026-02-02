@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from spec_orchestrator.models import Instruction, OrchestratorState, StepResult
+from spec_orca.models import Instruction, OrchestratorState, StepResult
 
 
 @runtime_checkable

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spec_orchestrator.models import Spec, SpecFormat
+from spec_orca.models import Spec, SpecFormat
 
 _MARKDOWN_EXTENSIONS = frozenset((".md", ".markdown"))
 _YAML_EXTENSIONS = frozenset((".yml", ".yaml"))

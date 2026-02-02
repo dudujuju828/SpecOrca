@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-from spec_orchestrator.dev.git import (
+from spec_orca.dev.git import (
     GitError,
     _run_git,
     auto_commit,
@@ -249,7 +249,7 @@ class TestAutoCommit:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         monkeypatch.chdir(str(git_repo))
-        with caplog.at_level(logging.INFO, logger="spec_orchestrator.dev.git"):
+        with caplog.at_level(logging.INFO, logger="spec_orca.dev.git"):
             auto_commit("nothing to do")
         assert "clean" in caplog.text.lower()
 

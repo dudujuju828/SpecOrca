@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from spec_orchestrator.models import (
+from spec_orca.models import (
     Instruction,
     OrchestratorState,
     Spec,

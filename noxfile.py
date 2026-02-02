@@ -1,4 +1,4 @@
-"""Nox sessions for spec-orchestrator development."""
+"""Nox sessions for SpecOrca development."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ nox.options.sessions = ["fmt", "lint", "typecheck", "tests"]
 nox.options.reuse_existing_virtualenvs = True
 
 PYTHON = "3.11"
-SRC = "src/spec_orchestrator"
+SRC = "src/spec_orca"
 
 
 @nox.session(python=False)

@@ -2,7 +2,7 @@
 
 Backend selection precedence (highest to lowest):
     1. CLI flag: ``--backend claude|mock``
-    2. Environment variable: ``SPEC_ORCHESTRATOR_BACKEND``
+    2. Environment variable: ``SPEC_ORCA_BACKEND``
     3. Default: ``mock``
 """
 
@@ -13,7 +13,7 @@ import os
 import shutil
 import subprocess
 
-from spec_orchestrator.models import Instruction, StepResult, StepStatus
+from spec_orca.models import Instruction, StepResult, StepStatus
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -21,7 +21,7 @@ from spec_orchestrator.models import Instruction, StepResult, StepStatus
 
 _BACKEND_NAMES = ("claude", "mock")
 
-_ENV_VAR = "SPEC_ORCHESTRATOR_BACKEND"
+_ENV_VAR = "SPEC_ORCA_BACKEND"
 _DEFAULT_BACKEND = "mock"
 
 
@@ -29,7 +29,7 @@ def resolve_backend_name(cli_value: str | None = None) -> str:
     """Return the effective backend name after applying precedence rules.
 
     1. *cli_value* (explicit ``--backend`` flag)
-    2. ``SPEC_ORCHESTRATOR_BACKEND`` environment variable
+    2. ``SPEC_ORCA_BACKEND`` environment variable
     3. Default (``mock``)
     """
     name = cli_value or os.environ.get(_ENV_VAR) or _DEFAULT_BACKEND

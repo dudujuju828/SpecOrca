@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from spec_orchestrator.models import OrchestratorState, Spec
-from spec_orchestrator.protocols import AgentBackendProtocol, ArchitectProtocol
+from spec_orca.models import OrchestratorState, Spec
+from spec_orca.protocols import AgentBackendProtocol, ArchitectProtocol
 
 
 def run_loop(
