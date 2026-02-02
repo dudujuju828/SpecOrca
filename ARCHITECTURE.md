@@ -1,10 +1,10 @@
 # Architecture
 
-This document describes the high-level design of **spec-orchestrator**.
+This document describes the high-level design of **SpecOrca**.
 
 ## Overview
 
-`spec-orchestrator` implements a two-role orchestration loop inspired by the
+SpecOrca implements a two-role orchestration loop inspired by the
 Architect / Agent pattern. A human (or automated caller) provides an initial
 goal and project state. The system iterates between an Architect that plans and
 an Agent that executes until the goal is met.
@@ -96,7 +96,7 @@ The top-level loop ties everything together:
 ## Module map
 
 ```
-src/spec_orchestrator/
+src/spec_orca/
 ├── __init__.py          # package version
 ├── cli.py               # argument parsing, entry point
 ├── (orchestrator.py)    # orchestration loop        [planned]

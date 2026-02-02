@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in **spec-orchestrator**, please
+If you discover a security vulnerability in **SpecOrca**, please
 report it responsibly. **Do not open a public GitHub issue.**
 
 Instead, email the maintainers directly or use GitHub's
@@ -13,7 +13,7 @@ Please include:
 
 - A description of the vulnerability and its potential impact.
 - Steps to reproduce or a proof-of-concept.
-- The version(s) of `spec-orchestrator` affected.
+- The version(s) of SpecOrca affected.
 
 ## Response timeline
 
@@ -29,6 +29,6 @@ Please include:
 
 ## Scope
 
-This policy covers the `spec-orchestrator` Python package and its default
+This policy covers the SpecOrca Python package (`spec_orca`) and its default
 Claude Code backend integration. Third-party backends are outside this scope —
 please report issues with those to their respective maintainers.

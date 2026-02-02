@@ -1,4 +1,4 @@
-# Contributing to spec-orchestrator
+# Contributing to SpecOrca
 
 Thank you for considering a contribution. This guide covers local setup,
 running checks, and what we look for in pull requests.
@@ -51,7 +51,7 @@ You can also run the tools directly:
 ```bash
 ruff check .                   # lint
 ruff format .                  # format
-mypy src/spec_orchestrator     # type-check
+mypy src/spec_orca             # type-check
 pytest                         # test + coverage
 ```
 

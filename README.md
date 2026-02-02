@@ -2,7 +2,7 @@
   <img src="assets/specorca.png" alt="SpecOrca logo" width="200">
 </p>
 
-# spec-orchestrator
+# SpecOrca
 
 [![CI](https://github.com/anthropics/spec-orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/anthropics/spec-orchestrator/actions/workflows/ci.yml)
 
@@ -12,14 +12,14 @@ executes each spec using a swappable coding backend (Claude Code by default).
 
 | | |
 |---|---|
-| **Package** | `spec_orchestrator` |
-| **CLI** | `spec-orchestrator` |
+| **Package** | `spec_orca` |
+| **CLI** | `spec-orca` |
 | **Python** | >= 3.11 |
 | **License** | [MIT](LICENSE) |
 
 ## What it does
 
-`spec-orchestrator` runs an iterative loop:
+SpecOrca runs an iterative loop:
 
 1. The **Architect** reads a project state and produces a prioritised list of
    specifications (small, verifiable units of work).
@@ -45,17 +45,17 @@ that satisfies the `Backend` protocol can be substituted.
 pip install -e ".[dev]"
 
 # Production install (once published)
-pip install spec-orchestrator
+pip install spec-orca
 ```
 
 ## Quickstart
 
 ```bash
 # Verify the install
-spec-orchestrator --version
+spec-orca --version
 
 # Show available commands
-spec-orchestrator --help
+spec-orca --help
 ```
 
 > **Note:** Subcommands for running the orchestration loop are not yet
@@ -64,10 +64,10 @@ spec-orchestrator --help
 ## CLI reference
 
 ```
-$ spec-orchestrator --help
-usage: spec-orchestrator [-h] [--version]
+$ spec-orca --help
+usage: spec-orca [-h] [--version]
 
-A spec-driven two-role orchestrator (Architect / Agent).
+SpecOrca — a spec-driven two-role orchestrator (Architect / Agent).
 
 options:
   -h, --help  show this help message and exit
@@ -104,18 +104,18 @@ pre-commit install
 
 ### Auto-commit (opt-in)
 
-When iterating on this repository you can let `spec-orchestrator` commit
+When iterating on this repository you can let SpecOrca commit
 changes automatically after each successful run:
 
 ```bash
 # Commit with an auto-generated message
-spec-orchestrator run --spec spec.md --auto-commit
+spec-orca run --spec spec.md --auto-commit
 
 # Add a Conventional Commit prefix
-spec-orchestrator run --spec spec.md --auto-commit --commit-prefix feat
+spec-orca run --spec spec.md --auto-commit --commit-prefix feat
 
 # Multi-step run with auto-commit
-spec-orchestrator run --spec spec.md --max-steps 3 --auto-commit --commit-prefix chore
+spec-orca run --spec spec.md --max-steps 3 --auto-commit --commit-prefix chore
 ```
 
 Behaviour:
@@ -124,14 +124,14 @@ Behaviour:
   never committed unless the code is extended to opt in.
 - **No commit on a clean tree** — if nothing changed, the commit is skipped.
 - Commit messages are single-line, normalized, and include the prefix when
-  provided (e.g. `feat: spec-orchestrator run: Add widgets`).
-- The git helper lives in `spec_orchestrator/dev/git.py` and does not affect
+  provided (e.g. `feat: spec-orca run: Add widgets`).
+- The git helper lives in `spec_orca/dev/git.py` and does not affect
   the core orchestration logic.
 
 ## Project layout
 
 ```
-src/spec_orchestrator/   # installable package
+src/spec_orca/           # installable package
 tests/                   # pytest test suite
 noxfile.py               # dev task runner
 pyproject.toml           # PEP 621 metadata + tool config

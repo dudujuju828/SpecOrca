@@ -1,16 +1,24 @@
 # Changelog
 
-All notable changes to **spec-orchestrator** will be documented in this file.
+All notable changes to **SpecOrca** will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed project from `spec-orchestrator` to **SpecOrca**.
+  - Display name: SpecOrca
+  - CLI command: `spec-orca`
+  - Python package: `spec_orca`
+  - Environment variable prefix: `SPEC_ORCA_`
+
 ### Added
 
-- Project scaffold: `src/spec_orchestrator` package with CLI entry point.
-- `spec-orchestrator --help` and `--version` commands.
+- Project scaffold: `src/spec_orca` package with CLI entry point.
+- `spec-orca --help` and `--version` commands.
 - Developer tooling: ruff (lint + format), mypy (strict), pytest + coverage,
   pre-commit hooks, nox task runner.
 - Repository documentation: README, ARCHITECTURE, CONTRIBUTING, CHANGELOG,
