@@ -59,6 +59,9 @@ class TestResolveBackendName:
         assert resolve_backend_name("MOCK") == "mock"
         assert resolve_backend_name("Claude") == "claude"
 
+    def test_whitespace_stripped(self) -> None:
+        assert resolve_backend_name("  mock  ") == "mock"
+
 
 # -- create_backend ---------------------------------------------------------
 
@@ -111,6 +114,11 @@ class TestMockBackend:
         assert isinstance(result.files_touched, tuple)
         assert isinstance(result.commands_run, tuple)
 
+    def test_different_steps_different_summary(self) -> None:
+        r0 = MockBackend().execute(_make_instruction(step_index=0))
+        r1 = MockBackend().execute(_make_instruction(step_index=1))
+        assert r0.summary != r1.summary
+
 
 # -- ClaudeBackend ----------------------------------------------------------
 
@@ -129,7 +137,12 @@ class TestClaudeBackend:
         with pytest.raises(ClaudeCodeNotFoundError, match="CLAUDE_CODE_EXECUTABLE"):
             backend.execute(_make_instruction())
 
-    def test_successful_json_output(self) -> None:
+    def test_error_message_includes_install_url(self) -> None:
+        backend = ClaudeBackend(executable="nonexistent-binary-xyz")
+        with pytest.raises(ClaudeCodeNotFoundError, match=r"docs\.anthropic\.com"):
+            backend.execute(_make_instruction())
+
+    def test_successful_json_dict(self) -> None:
         backend = ClaudeBackend(executable="claude")
         json_output = json.dumps({"result": "All done."})
         fake_proc = subprocess.CompletedProcess(
@@ -145,7 +158,7 @@ class TestClaudeBackend:
         assert result.status == StepStatus.SUCCESS
         assert "All done." in result.output
 
-    def test_successful_list_output(self) -> None:
+    def test_successful_json_list(self) -> None:
         backend = ClaudeBackend(executable="claude")
         json_output = json.dumps(
             [
@@ -166,6 +179,39 @@ class TestClaudeBackend:
         assert result.status == StepStatus.SUCCESS
         assert "First block." in result.output
         assert "Second block." in result.output
+
+    def test_json_neither_dict_nor_list(self) -> None:
+        """JSON that parses but is not dict/list (e.g. a string) uses fallback."""
+        backend = ClaudeBackend(executable="claude")
+        json_output = json.dumps("just a string")
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json_output, stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_instruction())
+
+        assert result.status == StepStatus.SUCCESS
+        assert "just a string" in result.output
+
+    def test_json_integer_fallback(self) -> None:
+        backend = ClaudeBackend(executable="claude")
+        json_output = json.dumps(42)
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json_output, stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_instruction())
+
+        assert result.status == StepStatus.SUCCESS
+        assert "42" in result.output
 
     def test_plain_text_fallback(self) -> None:
         backend = ClaudeBackend(executable="claude")
@@ -197,12 +243,43 @@ class TestClaudeBackend:
         assert result.status == StepStatus.FAILURE
         assert "something broke" in result.output
 
+    def test_nonzero_exit_fallback_to_stdout(self) -> None:
+        backend = ClaudeBackend(executable="claude")
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="stdout msg", stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_instruction())
+
+        assert result.status == StepStatus.FAILURE
+        assert "stdout msg" in result.output
+
+    def test_nonzero_exit_fallback_to_exit_code(self) -> None:
+        backend = ClaudeBackend(executable="claude")
+        fake_proc = subprocess.CompletedProcess(args=[], returncode=42, stdout="", stderr="")
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_instruction())
+
+        assert result.status == StepStatus.FAILURE
+        assert "42" in result.output
+
     def test_timeout_returns_error(self) -> None:
         backend = ClaudeBackend(executable="claude")
 
         with (
             mock.patch("shutil.which", return_value="/usr/bin/claude"),
-            mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired("claude", 300)),
+            mock.patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired("claude", 300),
+            ),
         ):
             result = backend.execute(_make_instruction())
 
@@ -226,5 +303,35 @@ class TestClaudeBackend:
             backend.execute(_make_instruction())
 
         call_kwargs = mock_run.call_args
-        # shell should not be passed or should be False
         assert call_kwargs.kwargs.get("shell") is not True
+
+    def test_summary_truncated_at_200(self) -> None:
+        """Summary should be capped at 200 characters."""
+        backend = ClaudeBackend(executable="claude")
+        long_text = "A" * 500
+        json_output = json.dumps({"result": long_text})
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json_output, stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_instruction())
+
+        assert len(result.summary) == 200
+
+    def test_passes_prompt_as_argument(self) -> None:
+        """The instruction prompt should be passed as a CLI argument."""
+        backend = ClaudeBackend(executable="claude")
+        fake_proc = subprocess.CompletedProcess(args=[], returncode=0, stdout="{}", stderr="")
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
+            backend.execute(_make_instruction(prompt="do the thing"))
+
+        cmd = mock_run.call_args[0][0]
+        assert "do the thing" in cmd

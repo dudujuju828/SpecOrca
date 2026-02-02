@@ -12,7 +12,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 
 from spec_orchestrator.models import Instruction, StepResult, StepStatus
 
@@ -196,8 +195,3 @@ class ClaudeBackend:
             output=raw.strip(),
             summary=raw.strip()[:200],
         )
-
-
-def _print_backend_error(msg: str) -> None:
-    """Print a backend error to stderr."""
-    print(f"Backend error: {msg}", file=sys.stderr)
