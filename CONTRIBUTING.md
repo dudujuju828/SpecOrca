@@ -34,7 +34,31 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
    pre-commit install
    ```
 
-## Running checks
+5. **Verify the CLI works**
+
+   ```bash
+   spec-orca --version          # should print: spec-orca 0.1.0
+   spec-orca --help             # show available commands
+   spec-orca run --help         # show run subcommand options
+   ```
+
+## Local development workflow
+
+After installing in editable mode (`pip install -e ".[dev]"`), changes to
+source files under `src/spec_orca/` take effect immediately — no reinstall
+needed.
+
+### Running the CLI
+
+```bash
+# Via the installed console script
+spec-orca run --spec path/to/spec.md --backend mock
+
+# Or via python -m (useful if the script isn't on PATH)
+python -m spec_orca.cli run --spec path/to/spec.md --backend mock
+```
+
+### Running checks
 
 All quality checks are managed by [nox](https://nox.thea.codes/):
 
@@ -49,29 +73,53 @@ nox -s tests           # run pytest with coverage
 You can also run the tools directly:
 
 ```bash
+ruff format .                  # auto-format
 ruff check .                   # lint
-ruff format .                  # format
-mypy src/spec_orca             # type-check
+mypy src/spec_orca             # type-check (strict)
 pytest                         # test + coverage
 ```
+
+### Required pipeline (before every commit)
+
+Every commit must leave the repo green. Run the full pipeline:
+
+```bash
+ruff format . && ruff check . && mypy src/spec_orca && pytest
+```
+
+Or equivalently:
+
+```bash
+nox
+```
+
+## Current pipeline status
+
+| Check       | Tool                | Command               | Target      |
+|-------------|---------------------|-----------------------|-------------|
+| Format      | ruff format         | `ruff format .`       | No changes  |
+| Lint        | ruff check          | `ruff check .`        | 0 errors    |
+| Type check  | mypy (strict)       | `mypy src/spec_orca`  | 0 errors    |
+| Tests       | pytest + coverage   | `pytest`              | >= 80% cov  |
 
 ## Style guide
 
 - **Formatting**: ruff format, line length 99.
 - **Linting**: ruff with pyflakes, pycodestyle, isort, pep8-naming, pyupgrade,
-  bugbear, builtins, comprehensions, simplify, type-checking, and ruff-specific
-  rules.
+  bugbear, builtins, comprehensions, simplify, and ruff-specific rules.
 - **Typing**: all public APIs must have type annotations. mypy runs in strict
   mode.
 - **Tests**: every new feature or bug fix should include tests. Coverage must
   stay at or above 80%.
 
-## Commit expectations
+## Commit discipline
 
 - Write clear, imperative-mood commit messages ("Add X", not "Added X").
 - Keep commits focused — one logical change per commit.
 - Reference related issues where applicable (`Fixes #123`).
-- Make sure `nox` passes before pushing.
+- **Every commit must leave the working tree clean and all checks passing.**
+  Run `nox` (or the direct commands above) before committing.
+- Do not commit with failing lint, type errors, or test failures.
 
 ## Pull requests
 
