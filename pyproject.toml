@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spec-orchestrator"
+version = "0.1.0"
+description = "A spec-driven two-role orchestrator (Architect / Agent) with swappable coding backends."
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "spec-orchestrator contributors" },
+]
+readme = "README.md"
+keywords = ["orchestrator", "architect", "agent", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+
+[project.scripts]
+spec-orchestrator = "spec_orchestrator.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
