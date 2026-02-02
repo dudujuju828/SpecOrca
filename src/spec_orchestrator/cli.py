@@ -46,11 +46,36 @@ def build_parser() -> argparse.ArgumentParser:
             "Default: mock."
         ),
     )
+    run_parser.add_argument(
+        "--auto-commit",
+        action="store_true",
+        default=False,
+        help=(
+            "Automatically commit changes after a successful run. "
+            "Off by default. Only tracked files are staged."
+        ),
+    )
+    run_parser.add_argument(
+        "--commit-prefix",
+        type=str,
+        default=None,
+        help=(
+            "Conventional Commit prefix for auto-commit messages "
+            "(e.g. 'feat', 'chore', 'test'). Ignored unless --auto-commit is set."
+        ),
+    )
 
     return parser
 
 
-def _run_command(spec_path: Path, max_steps: int, backend_name: str | None) -> int:
+def _run_command(
+    spec_path: Path,
+    max_steps: int,
+    backend_name: str | None,
+    *,
+    auto_commit: bool,
+    commit_prefix: str | None,
+) -> int:
     """Execute the 'run' subcommand."""
     from spec_orchestrator.backends import (
         ClaudeCodeNotFoundError,
@@ -84,6 +109,23 @@ def _run_command(spec_path: Path, max_steps: int, backend_name: str | None) -> i
         print(f"Completed after {state.current_step} step(s).")
     else:
         print(f"Stopped at step {state.current_step} (max-steps reached).")
+
+    # -- optional auto-commit -----------------------------------------------
+    if auto_commit:
+        from spec_orchestrator.dev.git import GitError
+        from spec_orchestrator.dev.git import auto_commit as do_commit
+
+        commit_msg = f"spec-orchestrator run: {spec.title}"
+        try:
+            committed = do_commit(commit_msg, prefix=commit_prefix)
+            if committed:
+                print("Auto-commit created.")
+            else:
+                print("Auto-commit skipped (no changes).")
+        except GitError as exc:
+            print(f"Auto-commit failed: {exc}", file=sys.stderr)
+            return 1
+
     return 0
 
 
@@ -95,7 +137,15 @@ def main(argv: list[str] | None = None) -> int:
         spec_path: Path = args.spec
         max_steps: int = args.max_steps
         backend_name: str | None = args.backend
-        return _run_command(spec_path, max_steps, backend_name)
+        ac: bool = args.auto_commit
+        cp: str | None = args.commit_prefix
+        return _run_command(
+            spec_path,
+            max_steps,
+            backend_name,
+            auto_commit=ac,
+            commit_prefix=cp,
+        )
 
     # No subcommand — print help by default.
     parser.print_help()

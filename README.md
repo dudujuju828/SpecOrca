@@ -96,6 +96,32 @@ nox -s tests           # pytest + coverage
 pre-commit install
 ```
 
+### Auto-commit (opt-in)
+
+When iterating on this repository you can let `spec-orchestrator` commit
+changes automatically after each successful run:
+
+```bash
+# Commit with an auto-generated message
+spec-orchestrator run --spec spec.md --auto-commit
+
+# Add a Conventional Commit prefix
+spec-orchestrator run --spec spec.md --auto-commit --commit-prefix feat
+
+# Multi-step run with auto-commit
+spec-orchestrator run --spec spec.md --max-steps 3 --auto-commit --commit-prefix chore
+```
+
+Behaviour:
+- **Off by default** — auto-commit only runs when `--auto-commit` is passed.
+- Only **tracked files** are staged (`git add -u`).  Untracked files are
+  never committed unless the code is extended to opt in.
+- **No commit on a clean tree** — if nothing changed, the commit is skipped.
+- Commit messages are single-line, normalized, and include the prefix when
+  provided (e.g. `feat: spec-orchestrator run: Add widgets`).
+- The git helper lives in `spec_orchestrator/dev/git.py` and does not affect
+  the core orchestration logic.
+
 ## Project layout
 
 ```
