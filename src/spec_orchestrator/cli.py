@@ -35,15 +35,31 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="Maximum number of orchestration steps (default: 1).",
     )
+    run_parser.add_argument(
+        "--backend",
+        type=str,
+        default=None,
+        choices=["claude", "mock"],
+        help=(
+            "Backend to use for execution. "
+            "Overrides the SPEC_ORCHESTRATOR_BACKEND env var. "
+            "Default: mock."
+        ),
+    )
 
     return parser
 
 
-def _run_command(spec_path: Path, max_steps: int) -> int:
+def _run_command(spec_path: Path, max_steps: int, backend_name: str | None) -> int:
     """Execute the 'run' subcommand."""
+    from spec_orchestrator.backends import (
+        ClaudeCodeNotFoundError,
+        create_backend,
+        resolve_backend_name,
+    )
     from spec_orchestrator.loader import load_spec
     from spec_orchestrator.orchestrator import run_loop
-    from spec_orchestrator.stubs import EchoBackend, SimpleArchitect
+    from spec_orchestrator.stubs import SimpleArchitect
 
     try:
         spec = load_spec(spec_path)
@@ -51,8 +67,14 @@ def _run_command(spec_path: Path, max_steps: int) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+    try:
+        name = resolve_backend_name(backend_name)
+        backend = create_backend(name)
+    except (ValueError, ClaudeCodeNotFoundError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
     architect = SimpleArchitect()
-    backend = EchoBackend()
     state = run_loop(spec=spec, architect=architect, backend=backend, max_steps=max_steps)
 
     for result in state.history:
@@ -72,7 +94,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         spec_path: Path = args.spec
         max_steps: int = args.max_steps
-        return _run_command(spec_path, max_steps)
+        backend_name: str | None = args.backend
+        return _run_command(spec_path, max_steps, backend_name)
 
     # No subcommand — print help by default.
     parser.print_help()

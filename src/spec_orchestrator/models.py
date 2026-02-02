@@ -48,6 +48,9 @@ class StepResult:
     step_index: int
     status: StepStatus
     output: str
+    summary: str = ""
+    files_touched: tuple[str, ...] = ()
+    commands_run: tuple[str, ...] = ()
 
 
 @dataclass
