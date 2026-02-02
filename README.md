@@ -1,5 +1,7 @@
 # spec-orchestrator
 
+[![CI](https://github.com/anthropics/spec-orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/anthropics/spec-orchestrator/actions/workflows/ci.yml)
+
 A spec-driven, two-role orchestration CLI for software tasks.
 An **Architect** decomposes work into precise specifications; an **Agent**
 executes each spec using a swappable coding backend (Claude Code by default).
