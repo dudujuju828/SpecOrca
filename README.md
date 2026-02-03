@@ -57,11 +57,21 @@ spec-orca --version
 # Show available commands
 spec-orca --help
 
+# Create a minimal spec
+cat > spec.yaml <<'YAML'
+goal: "Ship a greeting"
+specs:
+  - id: "greet"
+    title: "Print hello"
+    acceptance_criteria:
+      - "Program prints 'hello'."
+YAML
+
 # Validate and print ordered specs
 spec-orca plan --spec spec.yaml
 
 # Run with the mock backend
-spec-orca run --spec spec.yaml --backend mock --max-steps 3
+spec-orca run --spec spec.yaml --backend mock --max-steps 1
 
 # Check environment health
 spec-orca doctor --spec spec.yaml --backend mock

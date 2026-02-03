@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pre-commit hooks, nox task runner.
 - Repository documentation: README, ARCHITECTURE, CONTRIBUTING, CHANGELOG,
   CODE_OF_CONDUCT, SECURITY.
+- YAML spec loader with validation for goals and specs.
+- Deterministic orchestration loop (SimpleArchitect + Agent) with dependency
+  ordering and explicit results.
+- CLI commands: `run`, `plan`, and `doctor`.
+- Backends: deterministic mock backend and Claude Code backend.
+- Project state snapshots with git summaries persisted to state.json.
+- Opt-in auto-commit helper that stages tracked changes only.
 
 ## [0.1.0] - 2026-02-02
 

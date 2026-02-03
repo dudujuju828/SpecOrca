@@ -48,8 +48,9 @@ verifiable units of work. Each specification describes:
 - **Acceptance criteria** the Agent must satisfy.
 - **Dependencies** on prior specs (if any).
 
-The Architect re-evaluates after every Agent cycle, so specifications can be
-added, reordered, or dropped as the project evolves.
+The current SimpleArchitect is deterministic and non-LLM. It loads the YAML
+spec file once, orders specs by dependencies, and updates spec status and
+attempts as results arrive. It does not generate new specs at runtime.
 
 ### Agent
 
@@ -68,10 +69,11 @@ class Backend(Protocol):
     def execute(self, spec: Spec, context: Context) -> Result: ...
 ```
 
-The **default backend** shells out to `claude-code` (the Claude Code CLI),
-passing the spec as a prompt and collecting the result. Any object satisfying
-the `Backend` protocol can be substituted — for example, a backend that calls a
-different LLM, runs a local script, or applies a deterministic code transform.
+Implementations include a deterministic mock backend for tests and a Claude
+Code backend that shells out to the `claude` CLI. The CLI defaults to the mock
+backend for deterministic runs. Any object satisfying the `Backend` protocol
+can be substituted — for example, a backend that calls a different LLM, runs a
+local script, or applies a deterministic code transform.
 
 ## Orchestration loop
 
@@ -97,14 +99,23 @@ The top-level loop ties everything together:
 
 ```
 src/spec_orca/
-├── __init__.py          # package version
-├── cli.py               # argument parsing, entry point
-├── (orchestrator.py)    # orchestration loop        [planned]
-├── (architect.py)       # Architect role             [planned]
-├── (agent.py)           # Agent role                 [planned]
-├── (backend.py)         # Backend protocol + default [planned]
-├── (models.py)          # Spec, Result, Context      [planned]
-└── (state.py)           # project state management   [planned]
+|-- __init__.py          # package version
+|-- cli.py               # argument parsing, entry point
+|-- architect.py         # SimpleArchitect (deterministic YAML planner)
+|-- agent.py             # Agent role
+|-- orchestrator.py      # orchestration loop + summaries
+|-- backend.py           # Backend protocol
+|-- backends/
+|   |-- __init__.py      # backend factory
+|   |-- mock.py          # deterministic mock backend
+|   `-- claude.py        # Claude Code backend (subprocess)
+|-- spec.py              # YAML spec loader + validation
+|-- models.py            # Spec, Result, Context models
+|-- state.py             # project state snapshotting
+|-- dev/
+|   `-- git.py           # opt-in auto-commit helper
+|-- loader.py            # spec loader (Markdown/YAML detection)
+|-- protocols.py         # step-based protocols
+|-- stubs.py             # step-based stubs for testing
+`-- _deprecated_cli.py   # compatibility wrapper
 ```
-
-Items in parentheses are planned modules not yet implemented.
