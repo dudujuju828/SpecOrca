@@ -5,8 +5,8 @@ invoked when the user explicitly opts in via ``--auto-commit``.
 
 Safety guarantees:
 - No commit is created when the working tree is clean.
-- Only tracked files are staged by default.
-- Commits are skipped (with a warning) if staging produces no changes.
+- Only tracked files are staged (``git add -u``).
+- Commits are skipped if staging produces no changes.
 - All git interactions use ``subprocess.run`` with ``shell=False``.
 """
 
@@ -30,7 +30,6 @@ def auto_commit(
     message: str,
     *,
     prefix: str | None = None,
-    stage_untracked: bool = False,
 ) -> bool:
     """Stage changes and commit if the tree is dirty.
 
@@ -38,8 +37,6 @@ def auto_commit(
         message: The commit message body (will be normalized).
         prefix: Optional Conventional Commit prefix (e.g. ``"feat"``).
             Prepended as ``"prefix: message"``.
-        stage_untracked: If True, also stage untracked files.  Defaults to
-            False (only tracked files are staged).
 
     Returns:
         True if a commit was created, False if skipped (clean tree).
@@ -49,14 +46,14 @@ def auto_commit(
     """
     _ensure_git()
 
-    if not has_changes(include_untracked=stage_untracked):
-        log.info("Working tree is clean — skipping auto-commit.")
+    if not has_changes():
+        log.info("Working tree is clean - skipping auto-commit.")
         return False
 
-    _stage(stage_untracked=stage_untracked)
+    _stage_tracked()
 
     if not _has_staged_changes():
-        log.info("Nothing staged after git-add — skipping auto-commit.")
+        log.info("Nothing staged after git-add - skipping auto-commit.")
         return False
 
     full_message = normalize_message(message, prefix=prefix)
@@ -75,7 +72,7 @@ def normalize_message(message: str, *, prefix: str | None = None) -> str:
 
     - Strips leading/trailing whitespace.
     - Collapses to one line (takes the first non-empty line).
-    - Prepends the *prefix* in ``prefix: …`` form if given.
+    - Prepends the *prefix* in ``prefix: ...`` form if given.
     """
     first_line = ""
     for line in message.splitlines():
@@ -116,11 +113,8 @@ def has_changes(*, include_untracked: bool = False) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _stage(*, stage_untracked: bool) -> None:
-    if stage_untracked:
-        _run_git("add", "-A")
-    else:
-        _run_git("add", "-u")
+def _stage_tracked() -> None:
+    _run_git("add", "-u")
 
 
 def _has_staged_changes() -> bool:

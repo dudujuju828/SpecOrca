@@ -131,10 +131,10 @@ spec-orca run --spec spec.yaml --max-steps 3 --auto-commit --commit-prefix chore
 ```
 
 Behaviour:
-- **Off by default** — auto-commit only runs when `--auto-commit` is passed.
-- Only **tracked files** are staged (`git add -u`).  Untracked files are
-  never committed unless the code is extended to opt in.
-- **No commit on a clean tree** — if nothing changed, the commit is skipped.
+- **Off by default** - auto-commit only runs when `--auto-commit` is passed.
+- Only **tracked files** are staged (`git add -u`).
+- **No commit on a clean tree** - if nothing changed, the commit is skipped.
+- **No commit on failed runs** - runs that exit non-zero never auto-commit.
 - Commit messages are single-line, normalized, and include the prefix when
   provided (e.g. `feat: spec-orca run: Add widgets`).
 - The git helper lives in `spec_orca/dev/git.py` and does not affect

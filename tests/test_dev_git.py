@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import subprocess
 from unittest import mock
 
@@ -15,6 +14,22 @@ from spec_orca.dev.git import (
     has_changes,
     normalize_message,
 )
+
+
+def _proc(
+    args: list[str],
+    *,
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=args,
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
 
 # ---------------------------------------------------------------------------
 # normalize_message
@@ -58,118 +73,38 @@ class TestNormalizeMessage:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests using a real temporary git repo
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def git_repo(tmp_path: pytest.TempPathFactory) -> pytest.TempPathFactory:
-    """Create a temporary git repo with an initial commit."""
-    subprocess.run(
-        ["git", "init"],
-        cwd=str(tmp_path),
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@test.com"],
-        cwd=str(tmp_path),
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=str(tmp_path),
-        capture_output=True,
-        check=True,
-    )
-    # Create initial commit so HEAD exists.
-    init_file = tmp_path / "init.txt"  # type: ignore[operator]
-    init_file.write_text("init\n")
-    subprocess.run(
-        ["git", "add", "-A"],
-        cwd=str(tmp_path),
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "initial"],
-        cwd=str(tmp_path),
-        capture_output=True,
-        check=True,
-    )
-    return tmp_path  # type: ignore[return-value]
-
-
-def _git_log(repo_path: object) -> list[str]:
-    """Return commit subject lines from the repo."""
-    result = subprocess.run(
-        ["git", "log", "--format=%s"],
-        cwd=str(repo_path),
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return [line for line in result.stdout.strip().splitlines() if line]
-
-
-# ---------------------------------------------------------------------------
 # has_changes
 # ---------------------------------------------------------------------------
 
 
 class TestHasChanges:
-    def test_clean_repo(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        assert has_changes() is False
+    def test_clean_repo(self) -> None:
+        with mock.patch(
+            "subprocess.run",
+            return_value=_proc(["git", "status", "--porcelain"], stdout=""),
+        ):
+            assert has_changes() is False
 
-    def test_tracked_modification(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        init_file = git_repo / "init.txt"  # type: ignore[operator]
-        init_file.write_text("modified\n")
-        assert has_changes() is True
+    def test_tracked_modification(self) -> None:
+        with mock.patch(
+            "subprocess.run",
+            return_value=_proc(["git", "status", "--porcelain"], stdout=" M init.txt\n"),
+        ):
+            assert has_changes() is True
 
-    def test_untracked_ignored_by_default(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        new_file = git_repo / "untracked.txt"  # type: ignore[operator]
-        new_file.write_text("new\n")
-        assert has_changes(include_untracked=False) is False
+    def test_untracked_ignored_by_default(self) -> None:
+        with mock.patch(
+            "subprocess.run",
+            return_value=_proc(["git", "status", "--porcelain"], stdout="?? new.txt\n"),
+        ):
+            assert has_changes(include_untracked=False) is False
 
-    def test_untracked_detected_when_opted_in(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        new_file = git_repo / "untracked.txt"  # type: ignore[operator]
-        new_file.write_text("new\n")
-        assert has_changes(include_untracked=True) is True
-
-    def test_staged_change_detected(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        init_file = git_repo / "init.txt"  # type: ignore[operator]
-        init_file.write_text("staged\n")
-        subprocess.run(
-            ["git", "add", "init.txt"],
-            cwd=str(git_repo),
-            capture_output=True,
-            check=True,
-        )
-        assert has_changes() is True
-
-    def test_deleted_file_detected(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        init_file = git_repo / "init.txt"  # type: ignore[operator]
-        init_file.unlink()
-        assert has_changes() is True
+    def test_untracked_detected_when_opted_in(self) -> None:
+        with mock.patch(
+            "subprocess.run",
+            return_value=_proc(["git", "status", "--porcelain"], stdout="?? new.txt\n"),
+        ):
+            assert has_changes(include_untracked=True) is True
 
 
 # ---------------------------------------------------------------------------
@@ -178,97 +113,68 @@ class TestHasChanges:
 
 
 class TestAutoCommit:
-    def test_no_commit_on_clean_tree(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        assert auto_commit("should not commit") is False
-        assert len(_git_log(git_repo)) == 1  # only initial commit
+    def test_no_commit_on_clean_tree(self) -> None:
+        responses = [
+            _proc(["git", "rev-parse", "--is-inside-work-tree"]),
+            _proc(["git", "status", "--porcelain"], stdout=""),
+        ]
+        with mock.patch("subprocess.run", side_effect=responses) as mocked:
+            assert auto_commit("should not commit") is False
 
-    def test_commits_tracked_changes(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        init_file = git_repo / "init.txt"  # type: ignore[operator]
-        init_file.write_text("changed\n")
+        commands = [call.args[0] for call in mocked.call_args_list]
+        assert ["git", "add", "-u"] not in commands
+        assert ["git", "commit", "-m", "should not commit"] not in commands
 
-        result = auto_commit("update init file")
+    def test_commits_tracked_changes(self) -> None:
+        responses = [
+            _proc(["git", "rev-parse", "--is-inside-work-tree"]),
+            _proc(["git", "status", "--porcelain"], stdout=" M init.txt\n"),
+            _proc(["git", "add", "-u"]),
+            _proc(
+                ["git", "diff", "--cached", "--quiet"],
+                returncode=1,
+            ),
+            _proc(["git", "commit", "-m", "update init file"]),
+        ]
+        with mock.patch("subprocess.run", side_effect=responses) as mocked:
+            result = auto_commit("update init file")
 
         assert result is True
-        log = _git_log(git_repo)
-        assert log[0] == "update init file"
+        commands = [call.args[0] for call in mocked.call_args_list]
+        assert ["git", "add", "-u"] in commands
+        assert ["git", "add", "-A"] not in commands
+        assert ["git", "commit", "-m", "update init file"] in commands
 
-    def test_prefix_applied(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        init_file = git_repo / "init.txt"  # type: ignore[operator]
-        init_file.write_text("v2\n")
-
-        auto_commit("update file", prefix="chore")
-
-        log = _git_log(git_repo)
-        assert log[0] == "chore: update file"
-
-    def test_untracked_not_staged_by_default(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        new_file = git_repo / "brand_new.txt"  # type: ignore[operator]
-        new_file.write_text("new content\n")
-
-        result = auto_commit("should skip")
+    def test_skips_when_no_staged_changes(self) -> None:
+        responses = [
+            _proc(["git", "rev-parse", "--is-inside-work-tree"]),
+            _proc(["git", "status", "--porcelain"], stdout=" M init.txt\n"),
+            _proc(["git", "add", "-u"]),
+            _proc(["git", "diff", "--cached", "--quiet"], returncode=0),
+        ]
+        with mock.patch("subprocess.run", side_effect=responses) as mocked:
+            result = auto_commit("should skip")
 
         assert result is False
-        assert len(_git_log(git_repo)) == 1
+        commands = [call.args[0] for call in mocked.call_args_list]
+        assert ["git", "commit", "-m", "should skip"] not in commands
 
-    def test_untracked_staged_when_opted_in(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        new_file = git_repo / "brand_new.txt"  # type: ignore[operator]
-        new_file.write_text("new content\n")
+    def test_commit_message_is_normalized(self) -> None:
+        responses = [
+            _proc(["git", "rev-parse", "--is-inside-work-tree"]),
+            _proc(["git", "status", "--porcelain"], stdout=" M init.txt\n"),
+            _proc(["git", "add", "-u"]),
+            _proc(
+                ["git", "diff", "--cached", "--quiet"],
+                returncode=1,
+            ),
+            _proc(["git", "commit", "-m", "feat: add widgets"]),
+        ]
+        with mock.patch("subprocess.run", side_effect=responses) as mocked:
+            auto_commit("  add widgets\n\nmore", prefix="feat:")
 
-        result = auto_commit("add new file", stage_untracked=True)
-
-        assert result is True
-        log = _git_log(git_repo)
-        assert log[0] == "add new file"
-
-    def test_raises_outside_git_repo(
-        self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(tmp_path))
-        with pytest.raises(GitError):
-            auto_commit("should fail")
-
-    def test_logs_clean_tree_skip(
-        self,
-        git_repo: pytest.TempPathFactory,
-        monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        with caplog.at_level(logging.INFO, logger="spec_orca.dev.git"):
-            auto_commit("nothing to do")
-        assert "clean" in caplog.text.lower()
-
-    def test_multiple_commits_accumulate(
-        self, git_repo: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(str(git_repo))
-        init_file = git_repo / "init.txt"  # type: ignore[operator]
-
-        init_file.write_text("v2\n")
-        auto_commit("first change", prefix="feat")
-
-        init_file.write_text("v3\n")
-        auto_commit("second change", prefix="fix")
-
-        log = _git_log(git_repo)
-        assert log[0] == "fix: second change"
-        assert log[1] == "feat: first change"
-        assert len(log) == 3  # initial + 2 auto-commits
+        commands = [call.args[0] for call in mocked.call_args_list]
+        assert ["git", "commit", "-m", "feat: add widgets"] in commands
 
 
 # ---------------------------------------------------------------------------

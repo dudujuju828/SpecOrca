@@ -200,6 +200,28 @@ class TestRunAutoCommit:
         call_kwargs = mocked.call_args
         assert call_kwargs.kwargs["prefix"] == "feat"
 
+    def test_auto_commit_skipped_on_failed_run(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from spec_orca.backends.mock import MockBackend, MockBackendConfig
+        from spec_orca.models import ResultStatus
+
+        yml = tmp_path / "spec.yaml"
+        _write_spec(yml)
+        failing_backend = MockBackend(
+            config=MockBackendConfig(status=ResultStatus.FAILURE, summary="fail")
+        )
+
+        with (
+            mock.patch("spec_orca.backends.create_backend", return_value=failing_backend),
+            mock.patch("spec_orca.dev.git.auto_commit") as mocked,
+        ):
+            rc = main(["run", "--spec", str(yml), "--auto-commit"])
+
+        assert rc == 1
+        mocked.assert_not_called()
+        assert "Auto-commit skipped" in capsys.readouterr().out
+
     def test_auto_commit_git_error_returns_1(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

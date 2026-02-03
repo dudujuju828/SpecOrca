@@ -171,6 +171,8 @@ def _run_command(
     summary = orchestrator.run(max_steps=max_steps, stop_on_failure=stop_on_failure)
 
     _print_run_summary(summary)
+    run_success = summary.failed == 0
+    exit_code = 0 if run_success else 1
 
     if state_path is not None:
         try:
@@ -190,7 +192,9 @@ def _run_command(
         save_state(state, state_path)
 
     # -- optional auto-commit -----------------------------------------------
-    if auto_commit:
+    if auto_commit and not run_success:
+        print("Auto-commit skipped (run failed).")
+    elif auto_commit:
         from spec_orca.dev.git import GitError
         from spec_orca.dev.git import auto_commit as do_commit
 
@@ -205,7 +209,7 @@ def _run_command(
             print(f"Auto-commit failed: {exc}", file=sys.stderr)
             return 1
 
-    return 0
+    return exit_code
 
 
 def _plan_command(spec_path: Path) -> int:
