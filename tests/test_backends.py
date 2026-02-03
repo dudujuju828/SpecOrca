@@ -13,10 +13,18 @@ from spec_orca.backends import (
     ClaudeBackend,
     ClaudeCodeNotFoundError,
     MockBackend,
+    MockBackendConfig,
     create_backend,
     resolve_backend_name,
 )
-from spec_orca.models import Instruction, Spec, SpecFormat, StepStatus
+from spec_orca.models import (
+    Context,
+    Instruction,
+    ResultStatus,
+    Spec,
+    SpecFormat,
+    StepStatus,
+)
 from spec_orca.protocols import AgentBackendProtocol
 
 # -- helpers ----------------------------------------------------------------
@@ -33,6 +41,15 @@ def _make_spec() -> Spec:
 
 def _make_instruction(step_index: int = 0, prompt: str = "do something") -> Instruction:
     return Instruction(spec=_make_spec(), step_index=step_index, prompt=prompt)
+
+
+def _make_context() -> Context:
+    return Context(
+        repo_path=Path("/tmp"),
+        spec_path=Path("/tmp/spec.md"),
+        goal="test goal",
+        backend_name="mock",
+    )
 
 
 # -- resolve_backend_name ---------------------------------------------------
@@ -118,6 +135,33 @@ class TestMockBackend:
         r0 = MockBackend().execute(_make_instruction(step_index=0))
         r1 = MockBackend().execute(_make_instruction(step_index=1))
         assert r0.summary != r1.summary
+
+    def test_configurable_result_and_files(self) -> None:
+        config = MockBackendConfig(
+            status=ResultStatus.FAILURE,
+            summary="Forced failure",
+            files_changed=["a.txt", "b.txt"],
+            commands_run=["pytest"],
+            error="boom",
+        )
+        backend = MockBackend(config=config)
+
+        result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.FAILURE
+        assert result.summary == "Forced failure"
+        assert result.files_changed == ["a.txt", "b.txt"]
+        assert result.commands_run == ["pytest"]
+        assert result.error == "boom"
+
+    def test_create_backend_uses_mock_config(self) -> None:
+        config = MockBackendConfig(status=ResultStatus.ERROR, error="bad")
+        backend = create_backend("mock", mock_config=config)
+
+        result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.ERROR
+        assert result.error == "bad"
 
 
 # -- ClaudeBackend ----------------------------------------------------------

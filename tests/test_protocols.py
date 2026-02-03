@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from spec_orca.backend import Backend
+from spec_orca.backends import MockBackend
 from spec_orca.protocols import AgentBackendProtocol, ArchitectProtocol
 from spec_orca.stubs import EchoBackend, SimpleArchitect
 
@@ -12,3 +14,6 @@ class TestProtocolConformance:
 
     def test_echo_backend_satisfies_protocol(self) -> None:
         assert isinstance(EchoBackend(), AgentBackendProtocol)
+
+    def test_mock_backend_satisfies_backend_protocol(self) -> None:
+        assert isinstance(MockBackend(), Backend)
