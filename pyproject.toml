@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "SpecOrca — a spec-driven two-role orchestrator (Architect / Agent) with swappable coding backends."
 requires-python = ">=3.11"
 license = "MIT"
+dependencies = [
+    "PyYAML>=6.0",
+]
 authors = [
     { name = "SpecOrca contributors" },
 ]
@@ -36,6 +39,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
     "coverage[toml]>=7.4",
+    "types-PyYAML>=6.0",
     "pre-commit>=4.0",
     "nox>=2024.4",
 ]

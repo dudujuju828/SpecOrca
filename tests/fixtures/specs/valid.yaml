@@ -1,0 +1,16 @@
+goal: "Ship v1"
+specs:
+  - id: "core-models"
+    title: "Add core models"
+    description: "Define Spec/Result dataclasses."
+    acceptance_criteria:
+      - "Spec dataclass exists"
+      - "Result dataclass exists"
+    dependencies: []
+  - id: "yaml-loader"
+    title: "Add YAML loader"
+    acceptance_criteria:
+      - "load_spec_file reads YAML"
+      - "invalid YAML raises helpful error"
+    dependencies:
+      - "core-models"

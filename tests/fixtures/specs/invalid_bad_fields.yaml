@@ -1,0 +1,6 @@
+specs:
+  - id: 123
+    title: ""
+    acceptance_criteria: "should be list"
+    dependencies: [1, 2]
+    extra: "nope"
