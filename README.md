@@ -56,27 +56,39 @@ spec-orca --version
 
 # Show available commands
 spec-orca --help
-```
 
-> **Note:** Subcommands for running the orchestration loop are not yet
-> implemented. See the [changelog](CHANGELOG.md) for progress.
+# Validate and print ordered specs
+spec-orca plan --spec spec.yaml
+
+# Run with the mock backend
+spec-orca run --spec spec.yaml --backend mock --max-steps 3
+
+# Check environment health
+spec-orca doctor --spec spec.yaml --backend mock
+```
 
 ## CLI reference
 
 ```
 $ spec-orca --help
-usage: spec-orca [-h] [--version]
+usage: spec-orca [-h] [--version] {run,plan,doctor} ...
 
 SpecOrca — a spec-driven two-role orchestrator (Architect / Agent).
 
 options:
   -h, --help  show this help message and exit
   --version   show program's version number and exit
+
+commands:
+  run          Run the orchestration loop.
+  plan         Validate and print the spec plan.
+  doctor       Check environment health.
 ```
 
 ## Backend notes
 
-The default backend shells out to `claude-code` (the Claude Code CLI).
+The default backend is `mock` for deterministic execution. To use Claude Code,
+run with `--backend claude` and ensure the `claude` executable is available.
 To use a different backend, implement the `Backend` protocol defined in the
 package and pass it to the orchestrator at construction time.
 Backend documentation will expand as the interface stabilises.
@@ -109,13 +121,13 @@ changes automatically after each successful run:
 
 ```bash
 # Commit with an auto-generated message
-spec-orca run --spec spec.md --auto-commit
+spec-orca run --spec spec.yaml --auto-commit
 
 # Add a Conventional Commit prefix
-spec-orca run --spec spec.md --auto-commit --commit-prefix feat
+spec-orca run --spec spec.yaml --auto-commit --commit-prefix feat
 
 # Multi-step run with auto-commit
-spec-orca run --spec spec.md --max-steps 3 --auto-commit --commit-prefix chore
+spec-orca run --spec spec.yaml --max-steps 3 --auto-commit --commit-prefix chore
 ```
 
 Behaviour:

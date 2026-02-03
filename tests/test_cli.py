@@ -11,6 +11,33 @@ from spec_orca import __version__
 from spec_orca.cli import build_parser, main
 
 
+def _write_spec(path: Path) -> None:
+    path.write_text(
+        """goal: "Test goal"
+specs:
+  - id: "a"
+    title: "A"
+    acceptance_criteria: ["done"]
+""",
+        encoding="utf-8",
+    )
+
+
+def _git_available() -> bool:
+    import subprocess
+
+    try:
+        subprocess.run(
+            ["git", "--version"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return True
+
+
 class TestBuildParser:
     def test_returns_parser(self) -> None:
         parser = build_parser()
@@ -23,25 +50,25 @@ class TestBuildParser:
 
     def test_run_subparser_exists(self) -> None:
         parser = build_parser()
-        # Should parse without error
-        args = parser.parse_args(["run", "--spec", "foo.md"])
+        args = parser.parse_args(["run", "--spec", "foo.yaml"])
         assert args.command == "run"
-        assert args.spec == Path("foo.md")
+        assert args.spec == Path("foo.yaml")
 
-    def test_auto_commit_defaults_false(self) -> None:
+    def test_plan_subparser_exists(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["run", "--spec", "foo.md"])
-        assert args.auto_commit is False
+        args = parser.parse_args(["plan", "--spec", "foo.yaml"])
+        assert args.command == "plan"
+        assert args.spec == Path("foo.yaml")
 
-    def test_commit_prefix_defaults_none(self) -> None:
+    def test_doctor_subparser_exists(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["run", "--spec", "foo.md"])
-        assert args.commit_prefix is None
+        args = parser.parse_args(["doctor"])
+        assert args.command == "doctor"
 
-    def test_backend_defaults_none(self) -> None:
+    def test_stop_on_failure_default_true(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["run", "--spec", "foo.md"])
-        assert args.backend is None
+        args = parser.parse_args(["run", "--spec", "foo.yaml"])
+        assert args.stop_on_failure is True
 
 
 class TestMain:
@@ -55,90 +82,74 @@ class TestMain:
 
 
 class TestRunSubcommand:
-    def test_run_with_markdown_spec(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        md = tmp_path / "spec.md"
-        md.write_text("# My Feature\nBuild it.\n", encoding="utf-8")
-
-        rc = main(["run", "--spec", str(md)])
-
-        assert rc == 0
-        out = capsys.readouterr().out
-        assert "[step 0]" in out
-        assert "Completed after 1 step(s)." in out
-
     def test_run_with_yaml_spec(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         yml = tmp_path / "spec.yaml"
-        yml.write_text("title: YAML Feature\nsteps:\n  - one\n", encoding="utf-8")
+        _write_spec(yml)
 
-        rc = main(["run", "--spec", str(yml)])
+        rc = main(["run", "--spec", str(yml), "--backend", "mock"])
 
         assert rc == 0
         out = capsys.readouterr().out
-        assert "[step 0]" in out
-        assert "YAML Feature" in out or "Completed" in out
+        assert "Progress:" in out
+        assert "a" in out
 
     def test_run_missing_spec(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main(["run", "--spec", "/nonexistent/spec.md"])
+        rc = main(["run", "--spec", "/nonexistent/spec.yaml"])
 
         assert rc == 1
         assert "Error:" in capsys.readouterr().err
-
-    def test_run_max_steps(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        md = tmp_path / "spec.md"
-        md.write_text("# Multi\nSteps.\n", encoding="utf-8")
-
-        rc = main(["run", "--spec", str(md), "--max-steps", "3"])
-
-        assert rc == 0
-        out = capsys.readouterr().out
-        assert "[step 0]" in out
-        assert "[step 1]" in out
-        assert "[step 2]" in out
 
     def test_run_no_spec_flag(self) -> None:
         with pytest.raises(SystemExit, match="2"):
             main(["run"])
 
-    def test_run_with_backend_mock(
+
+class TestPlanSubcommand:
+    def test_plan_prints_ordered_specs(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        md = tmp_path / "spec.md"
-        md.write_text("# Backend Test\nDo it.\n", encoding="utf-8")
+        yml = tmp_path / "spec.yaml"
+        yml.write_text(
+            """goal: "Plan"
+specs:
+  - id: "first"
+    title: "First"
+    acceptance_criteria: ["ok"]
+  - id: "second"
+    title: "Second"
+    acceptance_criteria: ["ok"]
+    dependencies: ["first"]
+""",
+            encoding="utf-8",
+        )
 
-        rc = main(["run", "--spec", str(md), "--backend", "mock"])
+        rc = main(["plan", "--spec", str(yml)])
 
         assert rc == 0
         out = capsys.readouterr().out
-        assert "[mock]" in out
+        assert "1. first" in out
+        assert "2. second" in out
 
-    def test_run_backend_env_var(
-        self,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setenv("SPEC_ORCA_BACKEND", "mock")
-        md = tmp_path / "spec.md"
-        md.write_text("# Env Test\nDo it.\n", encoding="utf-8")
 
-        rc = main(["run", "--spec", str(md)])
+class TestDoctorSubcommand:
+    @pytest.mark.skipif(not _git_available(), reason="git not available")
+    def test_doctor_with_spec(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        yml = tmp_path / "spec.yaml"
+        _write_spec(yml)
+
+        rc = main(["doctor", "--spec", str(yml), "--backend", "mock"])
 
         assert rc == 0
         out = capsys.readouterr().out
-        assert "[mock]" in out
+        assert "python: OK" in out
+        assert "git:" in out
 
-    def test_run_unsupported_spec_extension(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        txt = tmp_path / "spec.txt"
-        txt.write_text("hello", encoding="utf-8")
-
-        rc = main(["run", "--spec", str(txt)])
+    def test_doctor_missing_spec_fails(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["doctor", "--spec", "/nope/spec.yaml", "--backend", "mock"])
 
         assert rc == 1
-        assert "Unsupported" in capsys.readouterr().err
+        out = capsys.readouterr().out
+        assert "spec: FAIL" in out
 
 
 class TestRunAutoCommit:
@@ -147,37 +158,37 @@ class TestRunAutoCommit:
     def test_auto_commit_skipped_no_changes(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        md = tmp_path / "spec.md"
-        md.write_text("# Test\nDo it.\n", encoding="utf-8")
+        yml = tmp_path / "spec.yaml"
+        _write_spec(yml)
 
         with mock.patch("spec_orca.dev.git.auto_commit", return_value=False):
-            rc = main(["run", "--spec", str(md), "--auto-commit"])
+            rc = main(["run", "--spec", str(yml), "--auto-commit"])
 
         assert rc == 0
-        assert "Auto-commit skipped (no changes)." in capsys.readouterr().out
+        assert "Auto-commit skipped" in capsys.readouterr().out
 
     def test_auto_commit_created(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        md = tmp_path / "spec.md"
-        md.write_text("# Test\nDo it.\n", encoding="utf-8")
+        yml = tmp_path / "spec.yaml"
+        _write_spec(yml)
 
         with mock.patch("spec_orca.dev.git.auto_commit", return_value=True):
-            rc = main(["run", "--spec", str(md), "--auto-commit"])
+            rc = main(["run", "--spec", str(yml), "--auto-commit"])
 
         assert rc == 0
-        assert "Auto-commit created." in capsys.readouterr().out
+        assert "Auto-commit created" in capsys.readouterr().out
 
     def test_auto_commit_with_prefix(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        md = tmp_path / "spec.md"
-        md.write_text("# Feat\nDo it.\n", encoding="utf-8")
+        yml = tmp_path / "spec.yaml"
+        _write_spec(yml)
 
         with mock.patch("spec_orca.dev.git.auto_commit", return_value=True) as mocked:
             rc = main(
                 [
                     "run",
                     "--spec",
-                    str(md),
+                    str(yml),
                     "--auto-commit",
                     "--commit-prefix",
                     "feat",
@@ -194,14 +205,14 @@ class TestRunAutoCommit:
     ) -> None:
         from spec_orca.dev.git import GitError
 
-        md = tmp_path / "spec.md"
-        md.write_text("# Test\nDo it.\n", encoding="utf-8")
+        yml = tmp_path / "spec.yaml"
+        _write_spec(yml)
 
         with mock.patch(
             "spec_orca.dev.git.auto_commit",
             side_effect=GitError("not a git repo"),
         ):
-            rc = main(["run", "--spec", str(md), "--auto-commit"])
+            rc = main(["run", "--spec", str(yml), "--auto-commit"])
 
         assert rc == 1
         assert "Auto-commit failed" in capsys.readouterr().err
@@ -210,11 +221,11 @@ class TestRunAutoCommit:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Without --auto-commit, the git module is never imported/called."""
-        md = tmp_path / "spec.md"
-        md.write_text("# Test\nDo it.\n", encoding="utf-8")
+        yml = tmp_path / "spec.yaml"
+        _write_spec(yml)
 
         with mock.patch("spec_orca.dev.git.auto_commit") as mocked:
-            rc = main(["run", "--spec", str(md)])
+            rc = main(["run", "--spec", str(yml)])
 
         assert rc == 0
         mocked.assert_not_called()

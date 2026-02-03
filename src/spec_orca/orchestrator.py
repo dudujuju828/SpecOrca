@@ -51,12 +51,24 @@ class ExecutionSummary:
 
     steps: int
     results: list[Result]
+    step_details: list[RunStep]
     specs: list[Spec]
     completed: int
     failed: int
     pending: int
     in_progress: int
     stopped_reason: str
+
+
+@dataclass(frozen=True)
+class RunStep:
+    """Details for a single execution step."""
+
+    index: int
+    spec_id: str
+    title: str
+    result: Result
+    attempts: int
 
 
 class Orchestrator:
@@ -69,6 +81,7 @@ class Orchestrator:
 
     def run(self, max_steps: int = 1, *, stop_on_failure: bool = True) -> ExecutionSummary:
         results: list[Result] = []
+        step_details: list[RunStep] = []
         steps = 0
         stopped_reason = "no_runnable_specs"
 
@@ -85,14 +98,23 @@ class Orchestrator:
             spec = self._architect.mark_in_progress(spec.id)
             result = self._agent.execute(spec, self._context)
             results.append(result)
-            self._architect.record_result(spec.id, result)
+            updated = self._architect.record_result(spec.id, result)
+            step_details.append(
+                RunStep(
+                    index=steps,
+                    spec_id=spec.id,
+                    title=spec.title,
+                    result=result,
+                    attempts=updated.attempts,
+                )
+            )
             steps += 1
 
             if stop_on_failure and result.status != ResultStatus.SUCCESS:
                 stopped_reason = "failure"
                 break
 
-        if steps >= max_steps:
+        if steps >= max_steps and stopped_reason == "no_runnable_specs":
             stopped_reason = "max_steps"
 
         specs_snapshot = self._architect.specs
@@ -104,6 +126,7 @@ class Orchestrator:
         return ExecutionSummary(
             steps=steps,
             results=results,
+            step_details=step_details,
             specs=specs_snapshot,
             completed=completed,
             failed=failed,

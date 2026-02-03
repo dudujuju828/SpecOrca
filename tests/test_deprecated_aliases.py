@@ -162,8 +162,15 @@ class TestDeprecatedCLICommand:
 
     def test_deprecated_cli_forwards_run(self, tmp_path: pytest.TempPathFactory) -> None:
         """spec-orchestrator run works and shows warning."""
-        spec = tmp_path / "spec.md"  # type: ignore[operator]
-        spec.write_text("# Test\nDo it.\n", encoding="utf-8")
+        spec = tmp_path / "spec.yaml"  # type: ignore[operator]
+        spec.write_text(
+            'goal: "Deprecated"\n'
+            "specs:\n"
+            '  - id: "one"\n'
+            '    title: "One"\n'
+            '    acceptance_criteria: ["done"]\n',
+            encoding="utf-8",
+        )
 
         proc = subprocess.run(
             [
@@ -183,8 +190,8 @@ class TestDeprecatedCLICommand:
 
         assert proc.returncode == 0
         assert "WARNING" in proc.stderr
-        assert "[step 0]" in proc.stdout
-        assert "[mock]" in proc.stdout
+        assert "Progress:" in proc.stdout
+        assert "one" in proc.stdout
 
 
 class TestNewCanonicalNames:

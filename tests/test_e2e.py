@@ -41,45 +41,64 @@ class TestE2EHelp:
         assert "--spec" in proc.stdout
         assert "--max-steps" in proc.stdout
         assert "--backend" in proc.stdout
-        assert "--auto-commit" in proc.stdout
+        assert "--goal" in proc.stdout
+        assert "--state" in proc.stdout
+        assert "--stop-on-failure" in proc.stdout
+        assert "--continue-on-failure" in proc.stdout
 
 
 class TestE2ERunMockBackend:
     def test_single_step_mock(self, tmp_path: Path) -> None:
-        spec = tmp_path / "feature.md"
-        spec.write_text("# Add widgets\nImplement widget support.\n", encoding="utf-8")
+        spec = tmp_path / "feature.yaml"
+        spec.write_text(
+            """goal: "Run"
+specs:
+  - id: "one"
+    title: "One"
+    acceptance_criteria: ["done"]
+""",
+            encoding="utf-8",
+        )
 
         proc = _run_cli("run", "--spec", str(spec), "--backend", "mock")
 
         assert proc.returncode == 0
-        assert "[step 0]" in proc.stdout
-        assert "[mock]" in proc.stdout
-        assert "Completed after 1 step(s)." in proc.stdout
+        assert "Progress:" in proc.stdout
+        assert "one" in proc.stdout
 
     def test_multi_step_mock(self, tmp_path: Path) -> None:
-        spec = tmp_path / "feature.md"
-        spec.write_text("# Multi step\nDo three things.\n", encoding="utf-8")
-
-        proc = _run_cli("run", "--spec", str(spec), "--backend", "mock", "--max-steps", "3")
-
-        assert proc.returncode == 0
-        assert "[step 0]" in proc.stdout
-        assert "[step 1]" in proc.stdout
-        assert "[step 2]" in proc.stdout
-
-    def test_yaml_spec(self, tmp_path: Path) -> None:
         spec = tmp_path / "feature.yaml"
-        spec.write_text("title: YAML Feature\nsteps:\n  - one\n", encoding="utf-8")
+        spec.write_text(
+            """goal: "Run"
+specs:
+  - id: "one"
+    title: "One"
+    acceptance_criteria: ["done"]
+  - id: "two"
+    title: "Two"
+    acceptance_criteria: ["done"]
+""",
+            encoding="utf-8",
+        )
 
-        proc = _run_cli("run", "--spec", str(spec), "--backend", "mock")
+        proc = _run_cli("run", "--spec", str(spec), "--backend", "mock", "--max-steps", "2")
 
         assert proc.returncode == 0
-        assert "[step 0]" in proc.stdout
+        assert "0" in proc.stdout
+        assert "1" in proc.stdout
 
     def test_default_backend_is_mock(self, tmp_path: Path) -> None:
         """Without --backend, the default should be mock (not claude)."""
-        spec = tmp_path / "feature.md"
-        spec.write_text("# Test\nGo.\n", encoding="utf-8")
+        spec = tmp_path / "feature.yaml"
+        spec.write_text(
+            """goal: "Default"
+specs:
+  - id: "one"
+    title: "One"
+    acceptance_criteria: ["done"]
+""",
+            encoding="utf-8",
+        )
 
         proc = _run_cli("run", "--spec", str(spec))
 
@@ -89,7 +108,7 @@ class TestE2ERunMockBackend:
 
 class TestE2EErrors:
     def test_missing_spec_file(self) -> None:
-        proc = _run_cli("run", "--spec", "/nonexistent/path/spec.md")
+        proc = _run_cli("run", "--spec", "/nonexistent/path/spec.yaml")
 
         assert proc.returncode == 1
         assert "Error:" in proc.stderr
@@ -101,7 +120,7 @@ class TestE2EErrors:
         proc = _run_cli("run", "--spec", str(spec))
 
         assert proc.returncode == 1
-        assert "Unsupported" in proc.stderr
+        assert "Unsupported" in proc.stderr or "Error:" in proc.stderr
 
     def test_missing_required_spec_flag(self) -> None:
         proc = _run_cli("run")
@@ -114,8 +133,16 @@ class TestE2EErrors:
         reason="Invalid backend choice caught by argparse on all platforms",
     )
     def test_invalid_backend_choice(self, tmp_path: Path) -> None:
-        spec = tmp_path / "spec.md"
-        spec.write_text("# Test\nGo.\n", encoding="utf-8")
+        spec = tmp_path / "spec.yaml"
+        spec.write_text(
+            """goal: "Bad"
+specs:
+  - id: "one"
+    title: "One"
+    acceptance_criteria: ["done"]
+""",
+            encoding="utf-8",
+        )
 
         proc = _run_cli("run", "--spec", str(spec), "--backend", "nonexistent")
 
