@@ -151,6 +151,19 @@ class TestDoctorSubcommand:
         out = capsys.readouterr().out
         assert "spec: FAIL" in out
 
+    def test_doctor_backend_missing_executable(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("shutil.which", lambda *_args, **_kwargs: None)
+
+        rc = main(["doctor", "--backend", "claude"])
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "backend: FAIL" in out
+
 
 class TestRunAutoCommit:
     """CLI auto-commit integration (mocked git layer)."""

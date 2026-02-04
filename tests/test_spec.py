@@ -53,3 +53,10 @@ class TestLoadSpecFile:
         assert "specs[0].acceptance_criteria must be a list of strings" in message
         assert "specs[0].dependencies[0] must be a string" in message
         assert "unexpected keys" in message.lower()
+
+    def test_invalid_yaml_reports_parse_error(self) -> None:
+        with pytest.raises(SpecValidationError) as excinfo:
+            load_spec_file(FIXTURES / "invalid_yaml.yaml")
+
+        message = str(excinfo.value)
+        assert "YAML parse error" in message

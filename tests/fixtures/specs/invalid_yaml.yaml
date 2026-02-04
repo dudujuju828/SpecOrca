@@ -1,0 +1,6 @@
+goal: "Broken"
+specs:
+  - id: "oops"
+    title: "Oops"
+    acceptance_criteria:
+      - "Missing bracket

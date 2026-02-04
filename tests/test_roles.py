@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from spec_orca.agent import Agent
 from spec_orca.architect import SimpleArchitect
 from spec_orca.models import Context, Result, ResultStatus, SpecStatus
@@ -104,6 +106,25 @@ specs:
         assert summary.failed == 1
         pending = [spec for spec in summary.specs if spec.status == SpecStatus.PENDING]
         assert pending and pending[0].id == "b"
+
+    def test_dependency_cycle_raises(self, tmp_path: Path) -> None:
+        spec_path = _write_spec(
+            tmp_path,
+            """goal: "test"
+specs:
+  - id: "a"
+    title: "A"
+    acceptance_criteria: ["done"]
+    dependencies: ["b"]
+  - id: "b"
+    title: "B"
+    acceptance_criteria: ["done"]
+    dependencies: ["a"]
+""",
+        )
+
+        with pytest.raises(ValueError, match="Circular dependencies detected"):
+            SimpleArchitect(spec_path)
 
 
 class TestStopConditions:
