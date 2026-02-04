@@ -75,6 +75,30 @@ backend for deterministic runs. Any object satisfying the `Backend` protocol
 can be substituted — for example, a backend that calls a different LLM, runs a
 local script, or applies a deterministic code transform.
 
+### Backend contract
+
+Backends are selected by name via `--backend` (CLI), or the `SPEC_ORCA_BACKEND`
+environment variable; the default is `mock`. The backend factory resolves the
+name and returns an implementation that satisfies the `Backend` protocol.
+
+Inputs:
+- `Spec`: the fully validated spec entry (id, title, description, acceptance criteria,
+  dependencies, status, attempts).
+- `Context`: repo path, spec path, goal, backend name, run id, and step counters.
+
+Outputs:
+- `Result`: a structured outcome with `status` (success/failure/error), summary,
+  details, optional error string, and optional file/command metadata.
+
+Guarantees:
+- Backends must not mutate state outside the target repository (no external side
+  effects beyond repo edits).
+- Error handling is deterministic: missing executables or invalid configuration
+  should raise a clear, actionable exception; runtime failures should be reported
+  as `Result` failures with an error message.
+- Execution must be safe by default: no `shell=True`, bounded timeouts, and
+  explicit argument lists for subprocess calls.
+
 ## Orchestration loop
 
 The top-level loop ties everything together:
