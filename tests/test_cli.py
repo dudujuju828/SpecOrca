@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest import mock
 
@@ -36,6 +37,35 @@ def _git_available() -> bool:
     except (OSError, subprocess.CalledProcessError):
         return False
     return True
+
+
+def _write_fake_claude(tmp_path: Path) -> Path:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    payload = (
+        '{"structured_output":{"status":"success","summary":"ok","details":"done",'
+        '"commands_run":[],"notes":[],"error":null}}'
+    )
+    if os.name == "nt":
+        script = bin_dir / "claude.cmd"
+        python_script = bin_dir / "claude_fake.py"
+        python_script.write_text(
+            f"print({payload!r})\n",
+            encoding="utf-8",
+        )
+        script.write_text(
+            f'@echo off\r\npython "{python_script}" %*\r\n',
+            encoding="utf-8",
+        )
+    else:
+        script = bin_dir / "claude"
+        script.write_text(
+            "#!/usr/bin/env sh\n"
+            f"printf '%s\n' {payload!r}\n",
+            encoding="utf-8",
+        )
+        os.chmod(script, 0o755)
+    return bin_dir
 
 
 class TestBuildParser:
@@ -316,3 +346,31 @@ class TestRunAutoCommit:
 
         assert rc == 0
         mocked.assert_not_called()
+
+
+def test_run_with_fake_claude_backend(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec_path = tmp_path / "spec.yaml"
+    spec_path.write_text(
+        """goal: "Test run"
+specs:
+  - id: "spec-1"
+    title: "Do work"
+    description: "Try fake Claude."
+    acceptance_criteria:
+      - "Return success"
+""",
+        encoding="utf-8",
+    )
+    bin_dir = _write_fake_claude(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH','')}")
+
+    rc = main(["run", "--backend", "claude", "--spec", str(spec_path), "--max-steps", "1"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "success" in out
