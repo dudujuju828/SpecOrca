@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from spec_orca.backend import Backend
+from spec_orca.backends.claude_schema import STRUCTURED_SCHEMA, render_prompt
 from spec_orca.models import Context, Result, ResultStatus, Spec
 
 __all__ = ["ClaudeCodeBackend", "ClaudeCodeConfig"]
@@ -25,36 +26,6 @@ _ENV_MAX_TURNS = "CLAUDE_CODE_MAX_TURNS"
 _ENV_MAX_BUDGET = "CLAUDE_CODE_MAX_BUDGET_USD"
 _ENV_TIMEOUT = "CLAUDE_CODE_TIMEOUT"
 _ENV_NO_SESSION = "CLAUDE_CODE_NO_SESSION_PERSISTENCE"
-
-_STRUCTURED_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "structured_output": {
-            "type": "object",
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": ["success", "partial", "failure", "error"],
-                },
-                "summary": {"type": "string"},
-                "details": {"type": "string"},
-                "files_changed": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "commands_run": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "error": {"type": ["string", "null"]},
-            },
-            "required": ["status", "summary"],
-            "additionalProperties": False,
-        }
-    },
-    "required": ["structured_output"],
-    "additionalProperties": True,
-}
 
 
 @dataclass(frozen=True)
@@ -90,7 +61,7 @@ class ClaudeCodeBackend(Backend):
         )
 
     def execute(self, spec: Spec, context: Context) -> Result:
-        prompt = _render_spec_prompt(spec, context)
+        prompt = render_prompt(spec, context)
         executable = self._resolve_executable()
         if executable is None:
             return _failure_result(
@@ -150,7 +121,7 @@ class ClaudeCodeBackend(Backend):
             "--output-format",
             "json",
             "--json-schema",
-            json.dumps(_STRUCTURED_SCHEMA, separators=(",", ":")),
+            json.dumps(STRUCTURED_SCHEMA, separators=(",", ":")),
             prompt,
         ]
         if self._allowed_tools:
@@ -182,10 +153,14 @@ def _result_from_structured(structured: dict[str, Any]) -> Result | str:
     status_raw = structured.get("status")
     if not isinstance(status_raw, str):
         return "structured_output.status must be a string"
-    try:
-        status = ResultStatus(status_raw)
-    except ValueError:
-        return "structured_output.status must be one of: success, partial, failure, error"
+    if status_raw == "success":
+        status = ResultStatus.SUCCESS
+    elif status_raw == "partial":
+        status = ResultStatus.PARTIAL
+    elif status_raw == "failure":
+        status = ResultStatus.FAILURE
+    else:
+        return "structured_output.status must be one of: success, partial, failure"
 
     summary = structured.get("summary")
     if not isinstance(summary, str) or not summary.strip():
@@ -195,27 +170,26 @@ def _result_from_structured(structured: dict[str, Any]) -> Result | str:
     if not isinstance(details, str):
         return "structured_output.details must be a string"
 
-    files_changed = structured.get("files_changed", [])
-    if not isinstance(files_changed, list) or not all(
-        isinstance(item, str) for item in files_changed
-    ):
-        return "structured_output.files_changed must be a list of strings"
-
     commands_run = structured.get("commands_run", [])
     if not isinstance(commands_run, list) or not all(
         isinstance(item, str) for item in commands_run
     ):
         return "structured_output.commands_run must be a list of strings"
 
+    notes = structured.get("notes", [])
+    if not isinstance(notes, list) or not all(isinstance(item, str) for item in notes):
+        return "structured_output.notes must be a list of strings"
+
     error = structured.get("error")
     if error is not None and not isinstance(error, str):
         return "structured_output.error must be a string or null"
+
+    details = _merge_details_and_notes(details, notes)
 
     return Result(
         status=status,
         summary=summary,
         details=details,
-        files_changed=files_changed,
         commands_run=commands_run,
         error=error,
         structured_output=structured,
@@ -234,22 +208,13 @@ def _failure_result(summary: str, error: str) -> Result:
     )
 
 
-def _render_spec_prompt(spec: Spec, context: Context) -> str:
-    """Create a deterministic prompt from spec and context."""
-    lines = [
-        f"Goal: {context.goal}",
-        f"Spec ID: {spec.id}",
-        f"Title: {spec.title}",
-    ]
-    if spec.description:
-        lines.append(f"Description: {spec.description}")
-    if spec.acceptance_criteria:
-        lines.append("Acceptance Criteria:")
-        lines.extend(f"- {item}" for item in spec.acceptance_criteria)
-    if spec.dependencies:
-        lines.append("Dependencies:")
-        lines.extend(f"- {item}" for item in spec.dependencies)
-    return "\n".join(lines)
+def _merge_details_and_notes(details: str, notes: list[str]) -> str:
+    if not notes:
+        return details
+    notes_block = "\n".join(f"- {note}" for note in notes)
+    if details.strip():
+        return f"{details.rstrip()}\n\nNotes:\n{notes_block}"
+    return f"Notes:\n{notes_block}"
 
 
 def _read_env_value(key: str) -> str | None:

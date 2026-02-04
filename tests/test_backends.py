@@ -195,8 +195,8 @@ class TestClaudeBackend:
                     "status": "success",
                     "summary": "All done.",
                     "details": "ok",
-                    "files_changed": ["a.txt"],
                     "commands_run": ["pytest"],
+                    "notes": ["note one"],
                     "error": None,
                 }
             }
@@ -213,7 +213,6 @@ class TestClaudeBackend:
 
         assert result.status == ResultStatus.SUCCESS
         assert result.summary == "All done."
-        assert result.files_changed == ["a.txt"]
         assert result.commands_run == ["pytest"]
         assert result.structured_output is not None
 
@@ -283,7 +282,18 @@ class TestClaudeBackend:
     def test_no_shell_true(self) -> None:
         """Verify subprocess.run is called without shell=True."""
         backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
-        json_output = json.dumps({"structured_output": {"status": "success", "summary": "ok"}})
+        json_output = json.dumps(
+            {
+                "structured_output": {
+                    "status": "success",
+                    "summary": "ok",
+                    "details": "",
+                    "commands_run": [],
+                    "notes": [],
+                    "error": None,
+                }
+            }
+        )
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=json_output, stderr=""
         )
@@ -330,7 +340,18 @@ class TestClaudeBackend:
     def test_passes_prompt_as_argument(self) -> None:
         """The spec prompt should be passed as a CLI argument."""
         backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
-        json_output = json.dumps({"structured_output": {"status": "success", "summary": "ok"}})
+        json_output = json.dumps(
+            {
+                "structured_output": {
+                    "status": "success",
+                    "summary": "ok",
+                    "details": "",
+                    "commands_run": [],
+                    "notes": [],
+                    "error": None,
+                }
+            }
+        )
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=json_output, stderr=""
         )
@@ -357,7 +378,18 @@ class TestClaudeBackend:
                 timeout=10,
             )
         )
-        json_output = json.dumps({"structured_output": {"status": "success", "summary": "ok"}})
+        json_output = json.dumps(
+            {
+                "structured_output": {
+                    "status": "success",
+                    "summary": "ok",
+                    "details": "",
+                    "commands_run": [],
+                    "notes": [],
+                    "error": None,
+                }
+            }
+        )
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=json_output, stderr=""
         )
