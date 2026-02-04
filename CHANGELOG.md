@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ordering and explicit results.
 - CLI commands: `run`, `plan`, and `doctor`.
 - Backends: deterministic mock backend and Claude Code backend.
+- Claude Code backend integration (CLI config, validation, and structured output).
 - Project state snapshots with git summaries persisted to state.json.
 - Opt-in auto-commit helper that stages tracked changes only.
 

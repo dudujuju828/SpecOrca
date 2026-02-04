@@ -103,6 +103,38 @@ To use a different backend, implement the `Backend` protocol defined in the
 package and pass it to the orchestrator at construction time.
 Backend documentation will expand as the interface stabilises.
 
+## Claude Code backend
+
+Prerequisites:
+- Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+- Ensure the CLI is on `PATH` and responding to `claude -v`.
+
+Verify the environment:
+```bash
+claude -v
+spec-orca doctor --backend claude --spec spec.yaml
+```
+
+Minimal run:
+```bash
+spec-orca run --backend claude --spec spec.yaml --max-steps 1
+```
+
+Safety defaults:
+- SpecOrca expects non-interactive runs, so you must configure tool access
+  explicitly via allow/deny lists.
+- Prefer an allowlist that is as narrow as possible for the task, and use
+  `--claude-disallowed-tools` to explicitly block risky tools.
+- You can restrict to an explicit tool list with `--claude-tools`.
+
+Example (restrictive):
+```bash
+spec-orca run --backend claude --spec spec.yaml \
+  --claude-allowed-tools "read:*" \
+  --claude-allowed-tools "write:src/*" \
+  --claude-disallowed-tools "rm:*"
+```
+
 Claude configuration precedence (highest to lowest):
 1) CLI flags
 2) Config file (`spec-orca.toml` or `[tool.spec_orca]` in `pyproject.toml`)
