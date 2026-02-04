@@ -420,3 +420,68 @@ class TestClaudeBackend:
         assert "--max-budget-usd" in cmd
         assert "--no-session-persistence" in cmd
         assert mock_run.call_args.kwargs.get("cwd") == _make_context().repo_path
+
+    def test_allowed_tools_are_passed_as_separate_args(self) -> None:
+        backend = ClaudeBackend(
+            ClaudeCodeConfig(
+                executable="claude",
+                allowed_tools=["read:*", "write:*"],
+                timeout=10,
+            )
+        )
+        json_output = json.dumps(
+            {
+                "structured_output": {
+                    "status": "success",
+                    "summary": "ok",
+                    "details": "",
+                    "commands_run": [],
+                    "notes": [],
+                    "error": None,
+                }
+            }
+        )
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json_output, stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
+            backend.execute(_make_spec(), _make_context())
+
+        cmd = mock_run.call_args[0][0]
+        allowed_index = cmd.index("--allowedTools")
+        assert cmd[allowed_index + 1] == "read:*,write:*"
+        assert "--json-schema" in cmd
+        schema_index = cmd.index("--json-schema")
+        assert cmd[schema_index + 1].startswith("{")
+        assert cmd[schema_index + 1].endswith("}")
+
+    def test_invalid_structured_output_returns_failure(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        json_output = json.dumps(
+            {
+                "structured_output": {
+                    "status": "unknown",
+                    "summary": "bad",
+                    "details": "",
+                    "commands_run": [],
+                    "notes": [],
+                    "error": None,
+                }
+            }
+        )
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json_output, stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.FAILURE
+        assert "structured_output.status" in (result.error or "")
