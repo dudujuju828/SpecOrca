@@ -14,7 +14,7 @@ warnings.warn(
 
 from spec_orca.backends import (
     ClaudeBackend,
-    ClaudeCodeNotFoundError,
+    ClaudeCodeConfig,
     MockBackend,
     create_backend,
     resolve_backend_name,
@@ -22,7 +22,7 @@ from spec_orca.backends import (
 
 __all__ = [
     "ClaudeBackend",
-    "ClaudeCodeNotFoundError",
+    "ClaudeCodeConfig",
     "MockBackend",
     "create_backend",
     "resolve_backend_name",

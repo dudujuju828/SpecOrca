@@ -52,6 +52,54 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run_parser.add_argument(
+        "--claude-executable",
+        type=str,
+        default=None,
+        help="Claude Code executable path/name (overrides CLAUDE_CODE_EXECUTABLE).",
+    )
+    run_parser.add_argument(
+        "--claude-allowed-tools",
+        type=str,
+        default=None,
+        help="Comma-separated allowed tool patterns for Claude Code.",
+    )
+    run_parser.add_argument(
+        "--claude-disallowed-tools",
+        type=str,
+        default=None,
+        help="Comma-separated disallowed tool patterns for Claude Code.",
+    )
+    run_parser.add_argument(
+        "--claude-tools",
+        type=str,
+        default=None,
+        help="Comma-separated explicit tool list for Claude Code.",
+    )
+    run_parser.add_argument(
+        "--claude-max-turns",
+        type=int,
+        default=None,
+        help="Maximum Claude Code turns.",
+    )
+    run_parser.add_argument(
+        "--claude-max-budget-usd",
+        type=float,
+        default=None,
+        help="Maximum Claude Code budget (USD).",
+    )
+    run_parser.add_argument(
+        "--claude-timeout",
+        type=int,
+        default=None,
+        help="Claude Code timeout in seconds.",
+    )
+    run_parser.add_argument(
+        "--claude-session-persistence",
+        action="store_true",
+        default=False,
+        help="Allow Claude Code to persist sessions to disk.",
+    )
+    run_parser.add_argument(
         "--goal",
         type=str,
         default=None,
@@ -132,12 +180,20 @@ def _run_command(
     stop_on_failure: bool,
     auto_commit: bool,
     commit_prefix: str | None,
+    claude_executable: str | None,
+    claude_allowed_tools: str | None,
+    claude_disallowed_tools: str | None,
+    claude_tools: str | None,
+    claude_max_turns: int | None,
+    claude_max_budget_usd: float | None,
+    claude_timeout: int | None,
+    claude_session_persistence: bool,
 ) -> int:
     """Execute the 'run' subcommand."""
     from spec_orca.agent import Agent
     from spec_orca.architect import SimpleArchitect
     from spec_orca.backends import (
-        ClaudeCodeNotFoundError,
+        ClaudeCodeConfig,
         create_backend,
         resolve_backend_name,
     )
@@ -154,8 +210,18 @@ def _run_command(
 
     try:
         name = resolve_backend_name(backend_name)
-        backend = create_backend(name)
-    except (ValueError, ClaudeCodeNotFoundError) as exc:
+        claude_config = ClaudeCodeConfig(
+            executable=claude_executable,
+            allowed_tools=_parse_csv(claude_allowed_tools),
+            disallowed_tools=_parse_csv(claude_disallowed_tools),
+            tools=_parse_csv(claude_tools),
+            max_turns=claude_max_turns,
+            max_budget_usd=claude_max_budget_usd,
+            no_session_persistence=not claude_session_persistence,
+            timeout=claude_timeout or 300,
+        )
+        backend = create_backend(name, claude_config=claude_config)
+    except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
@@ -294,6 +360,14 @@ def main(argv: list[str] | None = None) -> int:
             stop_on_failure=stop_on_failure,
             auto_commit=ac,
             commit_prefix=cp,
+            claude_executable=args.claude_executable,
+            claude_allowed_tools=args.claude_allowed_tools,
+            claude_disallowed_tools=args.claude_disallowed_tools,
+            claude_tools=args.claude_tools,
+            claude_max_turns=args.claude_max_turns,
+            claude_max_budget_usd=args.claude_max_budget_usd,
+            claude_timeout=args.claude_timeout,
+            claude_session_persistence=args.claude_session_persistence,
         )
 
     if args.command == "plan":
@@ -356,6 +430,13 @@ def _print_table(headers: Iterable[str], rows: Iterable[tuple[str, ...]]) -> Non
 def _clean_summary(summary: str) -> str:
     collapsed = " ".join(summary.split())
     return textwrap.shorten(collapsed, width=60, placeholder="...")
+
+
+def _parse_csv(value: str | None) -> list[str] | None:
+    if value is None:
+        return None
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    return items or None
 
 
 def _commit_message(summary: ExecutionSummary, goal: str) -> str:

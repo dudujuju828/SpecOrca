@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from spec_orca.backends.claude import ClaudeCodeBackend, ClaudeCodeNotFoundError
+from spec_orca.backends.claude import ClaudeCodeBackend, ClaudeCodeConfig
 from spec_orca.backends.mock import MockBackend, MockBackendConfig
 
 __all__ = [
     "ClaudeBackend",
     "ClaudeCodeBackend",
-    "ClaudeCodeNotFoundError",
+    "ClaudeCodeConfig",
     "MockBackend",
     "MockBackendConfig",
     "create_backend",
@@ -40,12 +40,14 @@ def create_backend(
     name: str,
     *,
     claude_executable: str | None = None,
+    claude_config: ClaudeCodeConfig | None = None,
     mock_config: MockBackendConfig | None = None,
 ) -> MockBackend | ClaudeCodeBackend:
     """Instantiate a backend by its registered name."""
     if name == "mock":
         return MockBackend(config=mock_config)
     if name == "claude":
-        return ClaudeCodeBackend(executable=claude_executable)
+        config = claude_config or ClaudeCodeConfig(executable=claude_executable)
+        return ClaudeCodeBackend(config=config)
     msg = f"Unknown backend: {name}"
     raise ValueError(msg)

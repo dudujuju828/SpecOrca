@@ -198,6 +198,7 @@ class TestResult:
         assert result.files_changed == []
         assert result.commands_run == []
         assert result.error is None
+        assert result.structured_output is None
 
     def test_frozen(self) -> None:
         result = Result(status=ResultStatus.SUCCESS, summary="ok")
@@ -219,9 +220,11 @@ class TestResult:
             details="Step 2 failed",
             files_changed=["a.py", "b.py"],
             commands_run=["ruff check ."],
+            structured_output={"status": "partial", "summary": "Partially done"},
         )
         assert result.files_changed == ["a.py", "b.py"]
         assert result.commands_run == ["ruff check ."]
+        assert result.structured_output == {"status": "partial", "summary": "Partially done"}
 
     def test_list_defaults_are_not_shared(self) -> None:
         a = Result(status=ResultStatus.SUCCESS, summary="ok")

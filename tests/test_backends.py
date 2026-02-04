@@ -11,7 +11,7 @@ import pytest
 
 from spec_orca.backends import (
     ClaudeBackend,
-    ClaudeCodeNotFoundError,
+    ClaudeCodeConfig,
     MockBackend,
     MockBackendConfig,
     create_backend,
@@ -171,44 +171,35 @@ class TestClaudeBackend:
     def test_satisfies_protocol(self) -> None:
         assert isinstance(ClaudeBackend(), AgentBackendProtocol)
 
-    def test_raises_when_executable_missing(self) -> None:
-        backend = ClaudeBackend(executable="nonexistent-binary-xyz")
-        with pytest.raises(ClaudeCodeNotFoundError, match="not found"):
-            backend.execute(_make_instruction())
+    def test_returns_failure_when_executable_missing(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="nonexistent-binary-xyz"))
+        result = backend.execute(_make_spec(), _make_context())
+        assert result.status == ResultStatus.FAILURE
+        assert "not found" in (result.error or "").lower()
 
     def test_error_message_is_actionable(self) -> None:
-        backend = ClaudeBackend(executable="nonexistent-binary-xyz")
-        with pytest.raises(ClaudeCodeNotFoundError, match="CLAUDE_CODE_EXECUTABLE"):
-            backend.execute(_make_instruction())
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="nonexistent-binary-xyz"))
+        result = backend.execute(_make_spec(), _make_context())
+        assert "CLAUDE_CODE_EXECUTABLE" in (result.error or "")
 
     def test_error_message_includes_install_url(self) -> None:
-        backend = ClaudeBackend(executable="nonexistent-binary-xyz")
-        with pytest.raises(ClaudeCodeNotFoundError, match=r"docs\.anthropic\.com"):
-            backend.execute(_make_instruction())
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="nonexistent-binary-xyz"))
+        result = backend.execute(_make_spec(), _make_context())
+        assert "docs.anthropic.com" in (result.error or "")
 
-    def test_successful_json_dict(self) -> None:
-        backend = ClaudeBackend(executable="claude")
-        json_output = json.dumps({"result": "All done."})
-        fake_proc = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=json_output, stderr=""
-        )
-
-        with (
-            mock.patch("shutil.which", return_value="/usr/bin/claude"),
-            mock.patch("subprocess.run", return_value=fake_proc),
-        ):
-            result = backend.execute(_make_instruction())
-
-        assert result.status == StepStatus.SUCCESS
-        assert "All done." in result.output
-
-    def test_successful_json_list(self) -> None:
-        backend = ClaudeBackend(executable="claude")
+    def test_successful_structured_output(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
         json_output = json.dumps(
-            [
-                {"type": "text", "text": "First block."},
-                {"type": "text", "text": "Second block."},
-            ]
+            {
+                "structured_output": {
+                    "status": "success",
+                    "summary": "All done.",
+                    "details": "ok",
+                    "files_changed": ["a.txt"],
+                    "commands_run": ["pytest"],
+                    "error": None,
+                }
+            }
         )
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=json_output, stderr=""
@@ -218,62 +209,16 @@ class TestClaudeBackend:
             mock.patch("shutil.which", return_value="/usr/bin/claude"),
             mock.patch("subprocess.run", return_value=fake_proc),
         ):
-            result = backend.execute(_make_instruction())
+            result = backend.execute(_make_spec(), _make_context())
 
-        assert result.status == StepStatus.SUCCESS
-        assert "First block." in result.output
-        assert "Second block." in result.output
-
-    def test_json_neither_dict_nor_list(self) -> None:
-        """JSON that parses but is not dict/list (e.g. a string) uses fallback."""
-        backend = ClaudeBackend(executable="claude")
-        json_output = json.dumps("just a string")
-        fake_proc = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=json_output, stderr=""
-        )
-
-        with (
-            mock.patch("shutil.which", return_value="/usr/bin/claude"),
-            mock.patch("subprocess.run", return_value=fake_proc),
-        ):
-            result = backend.execute(_make_instruction())
-
-        assert result.status == StepStatus.SUCCESS
-        assert "just a string" in result.output
-
-    def test_json_integer_fallback(self) -> None:
-        backend = ClaudeBackend(executable="claude")
-        json_output = json.dumps(42)
-        fake_proc = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=json_output, stderr=""
-        )
-
-        with (
-            mock.patch("shutil.which", return_value="/usr/bin/claude"),
-            mock.patch("subprocess.run", return_value=fake_proc),
-        ):
-            result = backend.execute(_make_instruction())
-
-        assert result.status == StepStatus.SUCCESS
-        assert "42" in result.output
-
-    def test_plain_text_fallback(self) -> None:
-        backend = ClaudeBackend(executable="claude")
-        fake_proc = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="Just plain text.", stderr=""
-        )
-
-        with (
-            mock.patch("shutil.which", return_value="/usr/bin/claude"),
-            mock.patch("subprocess.run", return_value=fake_proc),
-        ):
-            result = backend.execute(_make_instruction())
-
-        assert result.status == StepStatus.SUCCESS
-        assert "Just plain text." in result.output
+        assert result.status == ResultStatus.SUCCESS
+        assert result.summary == "All done."
+        assert result.files_changed == ["a.txt"]
+        assert result.commands_run == ["pytest"]
+        assert result.structured_output is not None
 
     def test_nonzero_exit_code(self) -> None:
-        backend = ClaudeBackend(executable="claude")
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="", stderr="something broke"
         )
@@ -282,13 +227,13 @@ class TestClaudeBackend:
             mock.patch("shutil.which", return_value="/usr/bin/claude"),
             mock.patch("subprocess.run", return_value=fake_proc),
         ):
-            result = backend.execute(_make_instruction())
+            result = backend.execute(_make_spec(), _make_context())
 
-        assert result.status == StepStatus.FAILURE
-        assert "something broke" in result.output
+        assert result.status == ResultStatus.FAILURE
+        assert "something broke" in (result.error or "")
 
     def test_nonzero_exit_fallback_to_stdout(self) -> None:
-        backend = ClaudeBackend(executable="claude")
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="stdout msg", stderr=""
         )
@@ -297,26 +242,26 @@ class TestClaudeBackend:
             mock.patch("shutil.which", return_value="/usr/bin/claude"),
             mock.patch("subprocess.run", return_value=fake_proc),
         ):
-            result = backend.execute(_make_instruction())
+            result = backend.execute(_make_spec(), _make_context())
 
-        assert result.status == StepStatus.FAILURE
-        assert "stdout msg" in result.output
+        assert result.status == ResultStatus.FAILURE
+        assert "stdout msg" in (result.error or "")
 
     def test_nonzero_exit_fallback_to_exit_code(self) -> None:
-        backend = ClaudeBackend(executable="claude")
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
         fake_proc = subprocess.CompletedProcess(args=[], returncode=42, stdout="", stderr="")
 
         with (
             mock.patch("shutil.which", return_value="/usr/bin/claude"),
             mock.patch("subprocess.run", return_value=fake_proc),
         ):
-            result = backend.execute(_make_instruction())
+            result = backend.execute(_make_spec(), _make_context())
 
-        assert result.status == StepStatus.FAILURE
-        assert "42" in result.output
+        assert result.status == ResultStatus.FAILURE
+        assert "42" in (result.error or "")
 
     def test_timeout_returns_error(self) -> None:
-        backend = ClaudeBackend(executable="claude")
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
 
         with (
             mock.patch("shutil.which", return_value="/usr/bin/claude"),
@@ -325,57 +270,113 @@ class TestClaudeBackend:
                 side_effect=subprocess.TimeoutExpired("claude", 300),
             ),
         ):
-            result = backend.execute(_make_instruction())
+            result = backend.execute(_make_spec(), _make_context())
 
-        assert result.status == StepStatus.ERROR
-        assert "timed out" in result.output.lower()
+        assert result.status == ResultStatus.FAILURE
+        assert "timed out" in (result.error or "").lower()
 
     def test_env_var_overrides_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CLAUDE_CODE_EXECUTABLE", "/custom/path/claude")
-        backend = ClaudeBackend(executable="default")
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="default"))
         assert backend._executable == "/custom/path/claude"
 
     def test_no_shell_true(self) -> None:
         """Verify subprocess.run is called without shell=True."""
-        backend = ClaudeBackend(executable="claude")
-        fake_proc = subprocess.CompletedProcess(args=[], returncode=0, stdout="{}", stderr="")
-
-        with (
-            mock.patch("shutil.which", return_value="/usr/bin/claude"),
-            mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
-        ):
-            backend.execute(_make_instruction())
-
-        call_kwargs = mock_run.call_args
-        assert call_kwargs.kwargs.get("shell") is not True
-
-    def test_summary_truncated_at_200(self) -> None:
-        """Summary should be capped at 200 characters."""
-        backend = ClaudeBackend(executable="claude")
-        long_text = "A" * 500
-        json_output = json.dumps({"result": long_text})
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        json_output = json.dumps({"structured_output": {"status": "success", "summary": "ok"}})
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=json_output, stderr=""
         )
 
         with (
             mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
+            backend.execute(_make_spec(), _make_context())
+
+        call_kwargs = mock_run.call_args
+        assert call_kwargs.kwargs.get("shell") is not True
+
+    def test_invalid_json_returns_failure(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="{bad json", stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
             mock.patch("subprocess.run", return_value=fake_proc),
         ):
-            result = backend.execute(_make_instruction())
+            result = backend.execute(_make_spec(), _make_context())
 
-        assert len(result.summary) == 200
+        assert result.status == ResultStatus.FAILURE
+        assert "invalid json" in (result.error or "").lower()
+
+    def test_missing_structured_output_returns_failure(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json.dumps({"foo": "bar"}), stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.FAILURE
+        assert "structured_output" in (result.error or "")
 
     def test_passes_prompt_as_argument(self) -> None:
-        """The instruction prompt should be passed as a CLI argument."""
-        backend = ClaudeBackend(executable="claude")
-        fake_proc = subprocess.CompletedProcess(args=[], returncode=0, stdout="{}", stderr="")
+        """The spec prompt should be passed as a CLI argument."""
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        json_output = json.dumps({"structured_output": {"status": "success", "summary": "ok"}})
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json_output, stderr=""
+        )
 
         with (
             mock.patch("shutil.which", return_value="/usr/bin/claude"),
             mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
         ):
-            backend.execute(_make_instruction(prompt="do the thing"))
+            backend.execute(_make_spec(), _make_context())
 
         cmd = mock_run.call_args[0][0]
-        assert "do the thing" in cmd
+        assert "Title: Test Spec" in " ".join(cmd)
+
+    def test_includes_required_flags_and_cwd(self) -> None:
+        backend = ClaudeBackend(
+            ClaudeCodeConfig(
+                executable="claude",
+                allowed_tools=["read:*"],
+                disallowed_tools=["rm:*"],
+                tools=["edit"],
+                max_turns=2,
+                max_budget_usd=1.5,
+                no_session_persistence=True,
+                timeout=10,
+            )
+        )
+        json_output = json.dumps({"structured_output": {"status": "success", "summary": "ok"}})
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json_output, stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
+            backend.execute(_make_spec(), _make_context())
+
+        cmd = mock_run.call_args[0][0]
+        assert "-p" in cmd
+        assert "--output-format" in cmd
+        assert "json" in cmd
+        assert "--json-schema" in cmd
+        assert "--allowedTools" in cmd
+        assert "--disallowedTools" in cmd
+        assert "--tools" in cmd
+        assert "--max-turns" in cmd
+        assert "--max-budget-usd" in cmd
+        assert "--no-session-persistence" in cmd
+        assert mock_run.call_args.kwargs.get("cwd") == _make_context().repo_path

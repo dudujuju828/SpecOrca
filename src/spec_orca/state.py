@@ -152,6 +152,7 @@ def _result_to_dict(result: Result) -> dict[str, Any]:
         "files_changed": list(result.files_changed),
         "commands_run": list(result.commands_run),
         "error": result.error,
+        "structured_output": result.structured_output,
     }
 
 
@@ -188,6 +189,10 @@ def _result_from_dict(data: Any) -> Result:
     if error is not None and not isinstance(error, str):
         msg = "result.error must be a string or null"
         raise ValueError(msg)
+    structured_output = data.get("structured_output")
+    if structured_output is not None and not isinstance(structured_output, dict):
+        msg = "result.structured_output must be a mapping or null"
+        raise ValueError(msg)
     return Result(
         status=status,
         summary=summary,
@@ -195,4 +200,5 @@ def _result_from_dict(data: Any) -> Result:
         files_changed=files_changed,
         commands_run=commands_run,
         error=error,
+        structured_output=structured_output,
     )

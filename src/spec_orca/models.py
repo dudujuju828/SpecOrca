@@ -128,6 +128,7 @@ class Result:
     files_changed: list[str] = field(default_factory=list)
     commands_run: list[str] = field(default_factory=list)
     error: str | None = None
+    structured_output: dict[str, object] | None = None
 
 
 # ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ warnings.warn(
 from spec_orca import __version__
 from spec_orca.backends import (
     ClaudeBackend,
-    ClaudeCodeNotFoundError,
+    ClaudeCodeConfig,
     MockBackend,
     create_backend,
     resolve_backend_name,
@@ -51,7 +51,7 @@ __all__ = [
     "AgentBackendProtocol",
     "ArchitectProtocol",
     "ClaudeBackend",
-    "ClaudeCodeNotFoundError",
+    "ClaudeCodeConfig",
     "Context",
     "EchoBackend",
     "Instruction",
