@@ -17,6 +17,7 @@ from spec_orca.backends import (
     create_backend,
     resolve_backend_name,
 )
+from spec_orca.git_ops import GitStatusDelta
 from spec_orca.models import (
     Context,
     Instruction,
@@ -26,7 +27,6 @@ from spec_orca.models import (
     StepStatus,
 )
 from spec_orca.protocols import AgentBackendProtocol
-from spec_orca.git_ops import GitStatusDelta
 
 # -- helpers ----------------------------------------------------------------
 
@@ -284,7 +284,7 @@ class TestClaudeBackend:
 
     def test_env_var_overrides_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CLAUDE_CODE_EXECUTABLE", "/custom/path/claude")
-        backend = ClaudeBackend(ClaudeCodeConfig(executable="default"))
+        backend = ClaudeBackend(ClaudeCodeConfig(executable=None))
         assert backend._executable == "/custom/path/claude"
 
     def test_no_shell_true(self) -> None:

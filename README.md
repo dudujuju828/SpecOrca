@@ -103,6 +103,25 @@ To use a different backend, implement the `Backend` protocol defined in the
 package and pass it to the orchestrator at construction time.
 Backend documentation will expand as the interface stabilises.
 
+Claude configuration precedence (highest to lowest):
+1) CLI flags
+2) Config file (`spec-orca.toml` or `[tool.spec_orca]` in `pyproject.toml`)
+3) Environment variables (`CLAUDE_CODE_*`)
+4) Defaults
+
+Config example:
+```toml
+[tool.spec_orca]
+claude_bin = "claude"
+claude_allowed_tools = ["read:*", "write:*"]
+claude_disallowed_tools = ["rm:*"]
+claude_tools = ["edit", "read"]
+claude_max_turns = 4
+claude_max_budget_usd = 2.5
+claude_timeout_seconds = 300
+claude_no_session_persistence = true
+```
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.

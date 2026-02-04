@@ -164,6 +164,58 @@ class TestDoctorSubcommand:
         out = capsys.readouterr().out
         assert "backend: FAIL" in out
 
+    def test_doctor_uses_configured_claude_bin(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            """[tool.spec_orca]
+claude_bin = "custom-claude"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CLAUDE_CODE_EXECUTABLE", raising=False)
+        monkeypatch.setattr(
+            "shutil.which",
+            lambda value: "/usr/bin/custom-claude" if value == "custom-claude" else None,
+        )
+
+        rc = main(["doctor", "--backend", "claude"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "custom-claude" in out
+
+    def test_doctor_cli_bin_overrides_config(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            """[tool.spec_orca]
+claude_bin = "config-claude"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CLAUDE_CODE_EXECUTABLE", raising=False)
+        monkeypatch.setattr(
+            "shutil.which",
+            lambda value: "/usr/bin/cli-claude" if value == "cli-claude" else None,
+        )
+
+        rc = main(["doctor", "--backend", "claude", "--claude-bin", "cli-claude"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "cli-claude" in out
+
 
 class TestRunAutoCommit:
     """CLI auto-commit integration (mocked git layer)."""

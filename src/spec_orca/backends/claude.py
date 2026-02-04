@@ -40,7 +40,7 @@ class ClaudeCodeConfig:
     max_turns: int | None = None
     max_budget_usd: float | None = None
     no_session_persistence: bool = True
-    timeout: int = _DEFAULT_TIMEOUT
+    timeout: int | None = None
 
 
 class ClaudeCodeBackend(Backend):
@@ -49,16 +49,18 @@ class ClaudeCodeBackend(Backend):
     def __init__(self, config: ClaudeCodeConfig | None = None) -> None:
         resolved = config or ClaudeCodeConfig()
         env_executable = _read_env_value(_ENV_EXECUTABLE)
-        self._executable = env_executable or resolved.executable or _DEFAULT_EXECUTABLE
-        self._allowed_tools = _env_list(_ENV_ALLOWED_TOOLS) or resolved.allowed_tools
-        self._disallowed_tools = _env_list(_ENV_DISALLOWED_TOOLS) or resolved.disallowed_tools
-        self._tools = _env_list(_ENV_TOOLS) or resolved.tools
-        self._max_turns = _env_int(_ENV_MAX_TURNS) or resolved.max_turns
-        self._max_budget_usd = _env_float(_ENV_MAX_BUDGET) or resolved.max_budget_usd
-        self._timeout = _env_int(_ENV_TIMEOUT) or resolved.timeout
+        self._executable = resolved.executable or env_executable or _DEFAULT_EXECUTABLE
+        self._allowed_tools = resolved.allowed_tools or _env_list(_ENV_ALLOWED_TOOLS)
+        self._disallowed_tools = resolved.disallowed_tools or _env_list(_ENV_DISALLOWED_TOOLS)
+        self._tools = resolved.tools or _env_list(_ENV_TOOLS)
+        self._max_turns = resolved.max_turns or _env_int(_ENV_MAX_TURNS)
+        self._max_budget_usd = resolved.max_budget_usd or _env_float(_ENV_MAX_BUDGET)
+        self._timeout = resolved.timeout or _env_int(_ENV_TIMEOUT) or _DEFAULT_TIMEOUT
         env_no_session = _env_bool(_ENV_NO_SESSION)
         self._no_session_persistence = (
-            env_no_session if env_no_session is not None else resolved.no_session_persistence
+            resolved.no_session_persistence
+            if resolved.no_session_persistence is not None
+            else (env_no_session if env_no_session is not None else True)
         )
 
     def execute(self, spec: Spec, context: Context) -> Result:

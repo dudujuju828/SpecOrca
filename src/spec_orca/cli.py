@@ -6,7 +6,9 @@ import argparse
 import shutil
 import sys
 import textwrap
+import tomllib
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,6 +16,18 @@ from spec_orca import __version__
 
 if TYPE_CHECKING:
     from spec_orca.orchestrator import ExecutionSummary
+
+
+@dataclass(frozen=True)
+class _ClaudeResolved:
+    claude_bin: str
+    claude_allowed_tools: list[str] | None
+    claude_disallowed_tools: list[str] | None
+    claude_tools: list[str] | None
+    claude_max_turns: int | None
+    claude_max_budget_usd: float | None
+    claude_timeout_seconds: int | None
+    claude_no_session_persistence: bool | None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,54 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Backend to use for execution. Overrides the SPEC_ORCA_BACKEND env var. Default: mock."
         ),
     )
-    run_parser.add_argument(
-        "--claude-executable",
-        type=str,
-        default=None,
-        help="Claude Code executable path/name (overrides CLAUDE_CODE_EXECUTABLE).",
-    )
-    run_parser.add_argument(
-        "--claude-allowed-tools",
-        type=str,
-        default=None,
-        help="Comma-separated allowed tool patterns for Claude Code.",
-    )
-    run_parser.add_argument(
-        "--claude-disallowed-tools",
-        type=str,
-        default=None,
-        help="Comma-separated disallowed tool patterns for Claude Code.",
-    )
-    run_parser.add_argument(
-        "--claude-tools",
-        type=str,
-        default=None,
-        help="Comma-separated explicit tool list for Claude Code.",
-    )
-    run_parser.add_argument(
-        "--claude-max-turns",
-        type=int,
-        default=None,
-        help="Maximum Claude Code turns.",
-    )
-    run_parser.add_argument(
-        "--claude-max-budget-usd",
-        type=float,
-        default=None,
-        help="Maximum Claude Code budget (USD).",
-    )
-    run_parser.add_argument(
-        "--claude-timeout",
-        type=int,
-        default=None,
-        help="Claude Code timeout in seconds.",
-    )
-    run_parser.add_argument(
-        "--claude-session-persistence",
-        action="store_true",
-        default=False,
-        help="Allow Claude Code to persist sessions to disk.",
-    )
+    _add_claude_args(run_parser)
     run_parser.add_argument(
         "--goal",
         type=str,
@@ -166,6 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["claude", "mock"],
         help="Optional backend to validate (defaults to env/default selection).",
     )
+    _add_claude_args(doctor_parser)
 
     return parser
 
@@ -180,14 +148,14 @@ def _run_command(
     stop_on_failure: bool,
     auto_commit: bool,
     commit_prefix: str | None,
-    claude_executable: str | None,
-    claude_allowed_tools: str | None,
-    claude_disallowed_tools: str | None,
-    claude_tools: str | None,
+    claude_bin: str | None,
+    claude_allowed_tools: list[str] | None,
+    claude_disallowed_tools: list[str] | None,
+    claude_tools: list[str] | None,
     claude_max_turns: int | None,
     claude_max_budget_usd: float | None,
-    claude_timeout: int | None,
-    claude_session_persistence: bool,
+    claude_timeout_seconds: int | None,
+    claude_no_session_persistence: bool | None,
 ) -> int:
     """Execute the 'run' subcommand."""
     from spec_orca.agent import Agent
@@ -209,16 +177,33 @@ def _run_command(
         return 1
 
     try:
+        config = _load_config(Path.cwd())
         name = resolve_backend_name(backend_name)
+        claude_resolved = _resolve_claude_config(
+            config,
+            claude_bin=claude_bin,
+            claude_allowed_tools=claude_allowed_tools,
+            claude_disallowed_tools=claude_disallowed_tools,
+            claude_tools=claude_tools,
+            claude_max_turns=claude_max_turns,
+            claude_max_budget_usd=claude_max_budget_usd,
+            claude_timeout_seconds=claude_timeout_seconds,
+            claude_no_session_persistence=claude_no_session_persistence,
+        )
+        no_session = (
+            claude_resolved.claude_no_session_persistence
+            if claude_resolved.claude_no_session_persistence is not None
+            else True
+        )
         claude_config = ClaudeCodeConfig(
-            executable=claude_executable,
-            allowed_tools=_parse_csv(claude_allowed_tools),
-            disallowed_tools=_parse_csv(claude_disallowed_tools),
-            tools=_parse_csv(claude_tools),
-            max_turns=claude_max_turns,
-            max_budget_usd=claude_max_budget_usd,
-            no_session_persistence=not claude_session_persistence,
-            timeout=claude_timeout or 300,
+            executable=claude_resolved.claude_bin,
+            allowed_tools=claude_resolved.claude_allowed_tools,
+            disallowed_tools=claude_resolved.claude_disallowed_tools,
+            tools=claude_resolved.claude_tools,
+            max_turns=claude_resolved.claude_max_turns,
+            max_budget_usd=claude_resolved.claude_max_budget_usd,
+            no_session_persistence=no_session,
+            timeout=claude_resolved.claude_timeout_seconds,
         )
         backend = create_backend(name, claude_config=claude_config)
     except ValueError as exc:
@@ -297,7 +282,19 @@ def _plan_command(spec_path: Path) -> int:
     return 0
 
 
-def _doctor_command(spec_path: Path | None, backend_name: str | None) -> int:
+def _doctor_command(
+    spec_path: Path | None,
+    backend_name: str | None,
+    *,
+    claude_bin: str | None,
+    claude_allowed_tools: list[str] | None,
+    claude_disallowed_tools: list[str] | None,
+    claude_tools: list[str] | None,
+    claude_max_turns: int | None,
+    claude_max_budget_usd: float | None,
+    claude_timeout_seconds: int | None,
+    claude_no_session_persistence: bool | None,
+) -> int:
     from spec_orca.backends import resolve_backend_name
 
     failures = 0
@@ -316,6 +313,7 @@ def _doctor_command(spec_path: Path | None, backend_name: str | None) -> int:
         checks.append(("spec", spec_ok, spec_detail))
 
     try:
+        config = _load_config(Path.cwd())
         resolved_backend = resolve_backend_name(backend_name)
     except ValueError as exc:
         checks.append(("backend", False, str(exc)))
@@ -326,7 +324,18 @@ def _doctor_command(spec_path: Path | None, backend_name: str | None) -> int:
     elif resolved_backend == "mock":
         checks.append(("backend", True, "mock backend available"))
     else:
-        backend_ok, backend_detail = _check_claude_executable()
+        claude_resolved = _resolve_claude_config(
+            config,
+            claude_bin=claude_bin,
+            claude_allowed_tools=claude_allowed_tools,
+            claude_disallowed_tools=claude_disallowed_tools,
+            claude_tools=claude_tools,
+            claude_max_turns=claude_max_turns,
+            claude_max_budget_usd=claude_max_budget_usd,
+            claude_timeout_seconds=claude_timeout_seconds,
+            claude_no_session_persistence=claude_no_session_persistence,
+        )
+        backend_ok, backend_detail = _check_claude_executable(claude_resolved.claude_bin)
         checks.append(("backend", backend_ok, backend_detail))
 
     for name, ok, detail in checks:
@@ -360,14 +369,14 @@ def main(argv: list[str] | None = None) -> int:
             stop_on_failure=stop_on_failure,
             auto_commit=ac,
             commit_prefix=cp,
-            claude_executable=args.claude_executable,
-            claude_allowed_tools=args.claude_allowed_tools,
-            claude_disallowed_tools=args.claude_disallowed_tools,
-            claude_tools=args.claude_tools,
+            claude_bin=args.claude_bin,
+            claude_allowed_tools=_flatten_list(args.claude_allowed_tools),
+            claude_disallowed_tools=_flatten_list(args.claude_disallowed_tools),
+            claude_tools=_flatten_list(args.claude_tools),
             claude_max_turns=args.claude_max_turns,
             claude_max_budget_usd=args.claude_max_budget_usd,
-            claude_timeout=args.claude_timeout,
-            claude_session_persistence=args.claude_session_persistence,
+            claude_timeout_seconds=args.claude_timeout_seconds,
+            claude_no_session_persistence=args.claude_no_session_persistence,
         )
 
     if args.command == "plan":
@@ -377,7 +386,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "doctor":
         doctor_spec_path: Path | None = args.spec
         doctor_backend_name: str | None = args.backend
-        return _doctor_command(doctor_spec_path, doctor_backend_name)
+        return _doctor_command(
+            doctor_spec_path,
+            doctor_backend_name,
+            claude_bin=args.claude_bin,
+            claude_allowed_tools=_flatten_list(args.claude_allowed_tools),
+            claude_disallowed_tools=_flatten_list(args.claude_disallowed_tools),
+            claude_tools=_flatten_list(args.claude_tools),
+            claude_max_turns=args.claude_max_turns,
+            claude_max_budget_usd=args.claude_max_budget_usd,
+            claude_timeout_seconds=args.claude_timeout_seconds,
+            claude_no_session_persistence=args.claude_no_session_persistence,
+        )
 
     # No subcommand — print help by default.
     parser.print_help()
@@ -439,6 +459,15 @@ def _parse_csv(value: str | None) -> list[str] | None:
     return items or None
 
 
+def _flatten_list(values: list[str] | None) -> list[str] | None:
+    if not values:
+        return None
+    flattened: list[str] = []
+    for value in values:
+        flattened.extend(_parse_csv(value) or [])
+    return flattened or None
+
+
 def _commit_message(summary: ExecutionSummary, goal: str) -> str:
     if summary.specs:
         return f"spec-orca run: {summary.specs[0].title}"
@@ -475,8 +504,7 @@ def _check_spec_path(spec_path: Path) -> tuple[bool, str]:
     return True, str(resolved)
 
 
-def _check_claude_executable() -> tuple[bool, str]:
-    executable = _resolve_claude_executable()
+def _check_claude_executable(executable: str) -> tuple[bool, str]:
     if shutil.which(executable) is None:
         return (
             False,
@@ -488,11 +516,6 @@ def _check_claude_executable() -> tuple[bool, str]:
     return True, f"found {executable}"
 
 
-def _resolve_claude_executable() -> str:
-    value = _read_env_value("CLAUDE_CODE_EXECUTABLE")
-    return value or "claude"
-
-
 def _read_env_value(key: str) -> str | None:
     import os
 
@@ -500,6 +523,251 @@ def _read_env_value(key: str) -> str | None:
     if value is None:
         return None
     return value.strip() or None
+
+
+def _add_claude_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--claude-bin",
+        type=str,
+        default=None,
+        help="Claude Code executable path/name (overrides CLAUDE_CODE_EXECUTABLE).",
+    )
+    parser.add_argument(
+        "--claude-allowed-tools",
+        action="append",
+        default=None,
+        help="Allowed tool patterns for Claude Code (repeatable).",
+    )
+    parser.add_argument(
+        "--claude-disallowed-tools",
+        action="append",
+        default=None,
+        help="Disallowed tool patterns for Claude Code (repeatable).",
+    )
+    parser.add_argument(
+        "--claude-tools",
+        action="append",
+        default=None,
+        help="Explicit Claude Code tool list (repeatable).",
+    )
+    parser.add_argument(
+        "--claude-max-turns",
+        type=int,
+        default=None,
+        help="Maximum Claude Code turns.",
+    )
+    parser.add_argument(
+        "--claude-max-budget-usd",
+        type=float,
+        default=None,
+        help="Maximum Claude Code budget (USD).",
+    )
+    parser.add_argument(
+        "--claude-timeout-seconds",
+        type=int,
+        default=None,
+        help="Claude Code timeout in seconds.",
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--claude-no-session-persistence",
+        dest="claude_no_session_persistence",
+        action="store_true",
+        help="Disable Claude Code session persistence (default).",
+    )
+    group.add_argument(
+        "--claude-session-persistence",
+        dest="claude_no_session_persistence",
+        action="store_false",
+        help="Allow Claude Code to persist sessions to disk.",
+    )
+    parser.set_defaults(claude_no_session_persistence=None)
+
+
+def _load_config(cwd: Path) -> dict[str, object]:
+    config_path = _read_env_value("SPEC_ORCA_CONFIG")
+    if config_path:
+        return _load_config_file(Path(config_path))
+    spec_orca_toml = cwd / "spec-orca.toml"
+    if spec_orca_toml.exists():
+        return _load_config_file(spec_orca_toml)
+    pyproject = cwd / "pyproject.toml"
+    if pyproject.exists():
+        return _load_pyproject(pyproject)
+    return {}
+
+
+def _load_config_file(path: Path) -> dict[str, object]:
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"Failed to read config file: {path}") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise ValueError(f"Invalid TOML in config file: {path}") from exc
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _load_pyproject(path: Path) -> dict[str, object]:
+    data = _load_config_file(path)
+    tool = data.get("tool")
+    if not isinstance(tool, dict):
+        return {}
+    spec_orca = tool.get("spec_orca")
+    if not isinstance(spec_orca, dict):
+        return {}
+    return spec_orca
+
+
+def _resolve_claude_config(
+    config: dict[str, object],
+    *,
+    claude_bin: str | None = None,
+    claude_allowed_tools: list[str] | None = None,
+    claude_disallowed_tools: list[str] | None = None,
+    claude_tools: list[str] | None = None,
+    claude_max_turns: int | None = None,
+    claude_max_budget_usd: float | None = None,
+    claude_timeout_seconds: int | None = None,
+    claude_no_session_persistence: bool | None = None,
+) -> _ClaudeResolved:
+    env = _resolve_env_claude_config()
+    file_config = _resolve_file_claude_config(config)
+
+    claude_bin_resolved = file_config.claude_bin or env.claude_bin
+    claude_allowed_resolved = file_config.claude_allowed_tools or env.claude_allowed_tools
+    claude_disallowed_resolved = file_config.claude_disallowed_tools or env.claude_disallowed_tools
+    claude_tools_resolved = file_config.claude_tools or env.claude_tools
+    claude_max_turns_resolved = file_config.claude_max_turns or env.claude_max_turns
+    claude_max_budget_resolved = file_config.claude_max_budget_usd or env.claude_max_budget_usd
+    claude_timeout_resolved = (
+        file_config.claude_timeout_seconds
+        if file_config.claude_timeout_seconds is not None
+        else env.claude_timeout_seconds
+    )
+    claude_no_session_resolved = (
+        file_config.claude_no_session_persistence
+        if file_config.claude_no_session_persistence is not None
+        else env.claude_no_session_persistence
+    )
+
+    if claude_bin is not None:
+        claude_bin_resolved = claude_bin
+    if claude_allowed_tools is not None:
+        claude_allowed_resolved = claude_allowed_tools
+    if claude_disallowed_tools is not None:
+        claude_disallowed_resolved = claude_disallowed_tools
+    if claude_tools is not None:
+        claude_tools_resolved = claude_tools
+    if claude_max_turns is not None:
+        claude_max_turns_resolved = claude_max_turns
+    if claude_max_budget_usd is not None:
+        claude_max_budget_resolved = claude_max_budget_usd
+    if claude_timeout_seconds is not None:
+        claude_timeout_resolved = claude_timeout_seconds
+    if claude_no_session_persistence is not None:
+        claude_no_session_resolved = claude_no_session_persistence
+
+    return _ClaudeResolved(
+        claude_bin=claude_bin_resolved,
+        claude_allowed_tools=claude_allowed_resolved,
+        claude_disallowed_tools=claude_disallowed_resolved,
+        claude_tools=claude_tools_resolved,
+        claude_max_turns=claude_max_turns_resolved,
+        claude_max_budget_usd=claude_max_budget_resolved,
+        claude_timeout_seconds=claude_timeout_resolved,
+        claude_no_session_persistence=claude_no_session_resolved,
+    )
+
+
+def _resolve_env_claude_config() -> _ClaudeResolved:
+    claude_no_session = _env_bool("CLAUDE_CODE_NO_SESSION_PERSISTENCE")
+    return _ClaudeResolved(
+        claude_bin=_read_env_value("CLAUDE_CODE_EXECUTABLE") or "claude",
+        claude_allowed_tools=_parse_csv(_read_env_value("CLAUDE_CODE_ALLOWED_TOOLS")),
+        claude_disallowed_tools=_parse_csv(_read_env_value("CLAUDE_CODE_DISALLOWED_TOOLS")),
+        claude_tools=_parse_csv(_read_env_value("CLAUDE_CODE_TOOLS")),
+        claude_max_turns=_env_int("CLAUDE_CODE_MAX_TURNS"),
+        claude_max_budget_usd=_env_float("CLAUDE_CODE_MAX_BUDGET_USD"),
+        claude_timeout_seconds=_env_int("CLAUDE_CODE_TIMEOUT") or 300,
+        claude_no_session_persistence=claude_no_session if claude_no_session is not None else True,
+    )
+
+
+def _resolve_file_claude_config(config: dict[str, object]) -> _ClaudeResolved:
+    value = config.get("claude", config)
+    if not isinstance(value, dict):
+        return _ClaudeResolved(
+            claude_bin="",
+            claude_allowed_tools=None,
+            claude_disallowed_tools=None,
+            claude_tools=None,
+            claude_max_turns=None,
+            claude_max_budget_usd=None,
+            claude_timeout_seconds=None,
+            claude_no_session_persistence=None,
+        )
+    return _ClaudeResolved(
+        claude_bin=_config_str(value.get("claude_bin")) or "",
+        claude_allowed_tools=_config_list(value.get("claude_allowed_tools")),
+        claude_disallowed_tools=_config_list(value.get("claude_disallowed_tools")),
+        claude_tools=_config_list(value.get("claude_tools")),
+        claude_max_turns=_config_int(value.get("claude_max_turns")),
+        claude_max_budget_usd=_config_float(value.get("claude_max_budget_usd")),
+        claude_timeout_seconds=_config_int(value.get("claude_timeout_seconds")),
+        claude_no_session_persistence=_config_bool(value.get("claude_no_session_persistence")),
+    )
+
+
+def _config_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _config_list(value: object) -> list[str] | None:
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        items = [item.strip() for item in value if item.strip()]
+        return items or None
+    return None
+
+
+def _config_int(value: object) -> int | None:
+    return value if isinstance(value, int) else None
+
+
+def _config_float(value: object) -> float | None:
+    return value if isinstance(value, (int, float)) else None
+
+
+def _config_bool(value: object) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _env_int(key: str) -> int | None:
+    raw = _read_env_value(key)
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
+
+
+def _env_float(key: str) -> float | None:
+    raw = _read_env_value(key)
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _env_bool(key: str) -> bool | None:
+    raw = _read_env_value(key)
+    if raw is None:
+        return None
+    return raw.lower() in {"1", "true", "yes", "on"}
 
 
 def _format_python_version() -> str:
