@@ -10,6 +10,7 @@ from typing import Any
 
 from spec_orca.backend import Backend
 from spec_orca.backends.claude_schema import STRUCTURED_SCHEMA, render_prompt
+from spec_orca.git_ops import GitStatusDelta, compute_status_delta
 from spec_orca.models import Context, Result, ResultStatus, Spec
 
 __all__ = ["ClaudeCodeBackend", "ClaudeCodeConfig"]
@@ -61,6 +62,7 @@ class ClaudeCodeBackend(Backend):
         )
 
     def execute(self, spec: Spec, context: Context) -> Result:
+        pre_delta, pre_warning = compute_status_delta(context.repo_path)
         prompt = render_prompt(spec, context)
         executable = self._resolve_executable()
         if executable is None:
@@ -95,6 +97,7 @@ class ClaudeCodeBackend(Backend):
                 f"Claude Code failed (exit {proc.returncode}): {output}",
             )
 
+        post_delta, post_warning = compute_status_delta(context.repo_path)
         parsed = _parse_json(proc.stdout)
         if isinstance(parsed, str):
             return _failure_result("Claude Code returned invalid JSON", parsed)
@@ -109,7 +112,19 @@ class ClaudeCodeBackend(Backend):
         result = _result_from_structured(structured)
         if isinstance(result, str):
             return _failure_result("Claude Code returned invalid structured output", result)
-        return result
+        files_changed, warning = _delta_files(pre_delta, post_delta, pre_warning, post_warning)
+        details = result.details
+        if warning:
+            details = _merge_details_and_notes(details, [warning])
+        return Result(
+            status=result.status,
+            summary=result.summary,
+            details=details,
+            files_changed=files_changed,
+            commands_run=result.commands_run,
+            error=result.error,
+            structured_output=result.structured_output,
+        )
 
     def _resolve_executable(self) -> str | None:
         return shutil.which(self._executable)
@@ -215,6 +230,19 @@ def _merge_details_and_notes(details: str, notes: list[str]) -> str:
     if details.strip():
         return f"{details.rstrip()}\n\nNotes:\n{notes_block}"
     return f"Notes:\n{notes_block}"
+
+
+def _delta_files(
+    before: GitStatusDelta,
+    after: GitStatusDelta,
+    pre_warning: str | None,
+    post_warning: str | None,
+) -> tuple[list[str], str | None]:
+    if pre_warning or post_warning:
+        warning = pre_warning or post_warning
+        return [], f"Git status unavailable: {warning}"
+    changed = sorted(set(after.changed) - set(before.changed))
+    return changed, None
 
 
 def _read_env_value(key: str) -> str | None:

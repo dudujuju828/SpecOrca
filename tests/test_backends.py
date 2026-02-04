@@ -26,6 +26,7 @@ from spec_orca.models import (
     StepStatus,
 )
 from spec_orca.protocols import AgentBackendProtocol
+from spec_orca.git_ops import GitStatusDelta
 
 # -- helpers ----------------------------------------------------------------
 
@@ -168,6 +169,13 @@ class TestMockBackend:
 
 
 class TestClaudeBackend:
+    @pytest.fixture(autouse=True)
+    def _stub_git_delta(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "spec_orca.backends.claude.compute_status_delta",
+            lambda *_args, **_kwargs: (GitStatusDelta(changed=[]), None),
+        )
+
     def test_satisfies_protocol(self) -> None:
         assert isinstance(ClaudeBackend(), AgentBackendProtocol)
 
