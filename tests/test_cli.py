@@ -60,8 +60,7 @@ def _write_fake_claude(tmp_path: Path) -> Path:
     else:
         script = bin_dir / "claude"
         script.write_text(
-            "#!/usr/bin/env sh\n"
-            f"printf '%s\n' {payload!r}\n",
+            f"#!/usr/bin/env sh\nprintf '%s\n' {payload!r}\n",
             encoding="utf-8",
         )
         os.chmod(script, 0o755)
@@ -367,7 +366,7 @@ specs:
     )
     bin_dir = _write_fake_claude(tmp_path)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH','')}")
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
 
     rc = main(["run", "--backend", "claude", "--spec", str(spec_path), "--max-steps", "1"])
 
