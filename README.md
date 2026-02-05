@@ -195,6 +195,27 @@ claude_timeout_seconds = 300
 claude_no_session_persistence = true
 ```
 
+## Codex backend
+
+Prerequisites:
+- Install the OpenAI codex CLI.
+- Ensure `codex` is on `PATH`.
+
+Verify setup:
+```bash
+spec-orca doctor --backend codex
+```
+
+Minimal run:
+```bash
+spec-orca run --backend codex --spec spec.yaml --max-steps 1
+```
+
+Optional model selection:
+```bash
+spec-orca run --backend codex --spec spec.yaml --codex-model gpt-5-codex
+```
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.

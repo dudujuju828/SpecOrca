@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--allow-all` flag for granting Claude Code full tool access.
 - Live progress output during orchestration runs.
 - Resilient structured output handling when Claude runs out of turns.
+- Codex backend (`--backend codex`) for executing specs via OpenAI's codex CLI.
 
 ## [0.1.0] - 2026-02-02
 
