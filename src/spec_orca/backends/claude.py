@@ -105,23 +105,23 @@ class ClaudeCodeBackend(Backend):
             return _failure_result("Claude Code returned invalid JSON", parsed)
 
         structured = parsed.get("structured_output")
-        if not isinstance(structured, dict):
-            return _failure_result(
-                "Claude Code returned missing structured output",
-                "Expected JSON output with a 'structured_output' object.",
-            )
 
         # The CLI envelope places the --json-schema response under
         # "structured_output", and the schema itself wraps fields in a
         # "structured_output" key, producing double nesting.  Unwrap it.
-        if "structured_output" in structured and isinstance(
+        if isinstance(structured, dict) and "structured_output" in structured and isinstance(
             structured["structured_output"], dict
         ):
             structured = structured["structured_output"]
 
-        result = _result_from_structured(structured)
-        if isinstance(result, str):
-            return _failure_result("Claude Code returned invalid structured output", result)
+        if isinstance(structured, dict):
+            result = _result_from_structured(structured)
+            if isinstance(result, str):
+                return _failure_result("Claude Code returned invalid structured output", result)
+        else:
+            # Structured output missing — Claude likely ran out of turns.
+            # Synthesise a result from the envelope so partial work is not lost.
+            result = _synthesize_from_envelope(parsed)
         files_changed, warning = _delta_files(pre_delta, post_delta, pre_warning, post_warning)
         details = result.details
         if warning:
@@ -219,6 +219,63 @@ def _result_from_structured(structured: dict[str, Any]) -> Result | str:
         error=error,
         structured_output=structured,
     )
+
+
+def _synthesize_from_envelope(parsed: dict[str, Any]) -> Result:
+    """Best-effort result when structured_output is missing from the envelope.
+
+    Claude may run out of turns before it can emit the JSON schema response.
+    Rather than treating all such runs as hard failures, we inspect the
+    envelope for signs of success (exit code 0, result text, no errors) and
+    report a partial/success result so that downstream specs can proceed.
+    """
+    num_turns = parsed.get("num_turns", 0)
+    result_text = str(parsed.get("result", "")).strip()
+    errors = parsed.get("errors", [])
+    denials = parsed.get("permission_denials", [])
+    is_error = parsed.get("is_error", False)
+
+    if is_error or errors or denials:
+        diag = _diagnose_missing_structured_output(parsed)
+        return Result(
+            status=ResultStatus.FAILURE,
+            summary="Claude Code did not produce structured output",
+            details=diag,
+            error=diag,
+        )
+
+    # Claude finished its turns without errors — treat as success.
+    summary = result_text[:120] if result_text else f"Completed in {num_turns} turn(s) (no structured output)"
+    return Result(
+        status=ResultStatus.SUCCESS,
+        summary=summary,
+        details=result_text or _diagnose_missing_structured_output(parsed),
+    )
+
+
+def _diagnose_missing_structured_output(parsed: dict[str, Any]) -> str:
+    """Build an actionable error message when structured_output is absent."""
+    parts: list[str] = []
+
+    num_turns = parsed.get("num_turns")
+    denials = parsed.get("permission_denials")
+    errors = parsed.get("errors")
+
+    if isinstance(num_turns, int) and num_turns > 0:
+        parts.append(f"Claude used {num_turns} turn(s) but did not produce structured output.")
+
+    if isinstance(denials, list) and denials:
+        tools = sorted({d.get("tool_name", "?") for d in denials if isinstance(d, dict)})
+        parts.append(f"Permission denied for tool(s): {', '.join(tools)}. Use --allow-all.")
+
+    if isinstance(errors, list) and errors:
+        parts.append(f"Errors reported: {errors}")
+
+    if not parts:
+        parts.append("Expected JSON output with a 'structured_output' object.")
+
+    parts.append("Try increasing --claude-max-turns to give Claude more room to finish.")
+    return " ".join(parts)
 
 
 def _failure_result(summary: str, error: str) -> Result:

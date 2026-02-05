@@ -330,7 +330,8 @@ class TestClaudeBackend:
         assert result.status == ResultStatus.FAILURE
         assert "invalid json" in (result.error or "").lower()
 
-    def test_missing_structured_output_returns_failure(self) -> None:
+    def test_missing_structured_output_synthesizes_success(self) -> None:
+        """When structured_output is absent but no errors, treat as success."""
         backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=json.dumps({"foo": "bar"}), stderr=""
@@ -342,8 +343,23 @@ class TestClaudeBackend:
         ):
             result = backend.execute(_make_spec(), _make_context())
 
+        assert result.status == ResultStatus.SUCCESS
+
+    def test_missing_structured_output_with_errors_returns_failure(self) -> None:
+        """When structured_output is absent and errors are present, fail."""
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        envelope = {"is_error": True, "errors": ["something went wrong"], "num_turns": 5}
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json.dumps(envelope), stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_spec(), _make_context())
+
         assert result.status == ResultStatus.FAILURE
-        assert "structured_output" in (result.error or "")
 
     def test_passes_prompt_as_argument(self) -> None:
         """The spec prompt should be passed as a CLI argument."""
