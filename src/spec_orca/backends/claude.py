@@ -111,6 +111,14 @@ class ClaudeCodeBackend(Backend):
                 "Expected JSON output with a 'structured_output' object.",
             )
 
+        # The CLI envelope places the --json-schema response under
+        # "structured_output", and the schema itself wraps fields in a
+        # "structured_output" key, producing double nesting.  Unwrap it.
+        if "structured_output" in structured and isinstance(
+            structured["structured_output"], dict
+        ):
+            structured = structured["structured_output"]
+
         result = _result_from_structured(structured)
         if isinstance(result, str):
             return _failure_result("Claude Code returned invalid structured output", result)

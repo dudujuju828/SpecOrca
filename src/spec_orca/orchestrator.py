@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from spec_orca.agent import Agent
@@ -79,11 +80,18 @@ class Orchestrator:
         self._agent = agent
         self._context = context
 
-    def run(self, max_steps: int = 1, *, stop_on_failure: bool = True) -> ExecutionSummary:
+    def run(
+        self,
+        max_steps: int = 1,
+        *,
+        stop_on_failure: bool = True,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> ExecutionSummary:
         results: list[Result] = []
         step_details: list[RunStep] = []
         steps = 0
         stopped_reason = "no_runnable_specs"
+        _log = on_progress or (lambda _msg: None)
 
         while steps < max_steps:
             runnable = self._architect.runnable_specs()
@@ -96,7 +104,13 @@ class Orchestrator:
                 stopped_reason = "no_runnable_specs"
                 break
             spec = self._architect.mark_in_progress(spec.id)
+            _log(
+                f"[step {steps + 1}/{max_steps}] Running spec '{spec.id}': {spec.title} ..."
+            )
             result = self._agent.execute(spec, self._context)
+            _log(
+                f"[step {steps + 1}/{max_steps}] Spec '{spec.id}' -> {result.status.value}"
+            )
             results.append(result)
             updated = self._architect.record_result(spec.id, result)
             step_details.append(

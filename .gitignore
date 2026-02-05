@@ -37,3 +37,6 @@ Desktop.ini
 # Environment variables
 .env
 .env.*
+
+# SpecOrca spec files (user-local)
+spec.yaml

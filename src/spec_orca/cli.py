@@ -217,9 +217,15 @@ def _run_command(
         goal=goal,
         backend_name=name,
     )
+    def _progress(msg: str) -> None:
+        print(msg, file=sys.stderr, flush=True)
+
     agent = Agent(backend)
     orchestrator = Orchestrator(architect, agent, context)
-    summary = orchestrator.run(max_steps=max_steps, stop_on_failure=stop_on_failure)
+    _progress(f"spec-orca: starting run ({max_steps} max step(s), backend={name})")
+    summary = orchestrator.run(
+        max_steps=max_steps, stop_on_failure=stop_on_failure, on_progress=_progress
+    )
 
     _print_run_summary(summary)
     run_success = summary.failed == 0
