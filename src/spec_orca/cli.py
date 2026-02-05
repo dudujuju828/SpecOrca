@@ -366,6 +366,9 @@ def main(argv: list[str] | None = None) -> int:
         stop_on_failure: bool = args.stop_on_failure
         ac: bool = args.auto_commit
         cp: str | None = args.commit_prefix
+        allowed = _flatten_list(args.claude_allowed_tools)
+        if args.allow_all and not allowed:
+            allowed = list(_ALL_CLAUDE_TOOLS)
         return _run_command(
             spec_path,
             max_steps,
@@ -376,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
             auto_commit=ac,
             commit_prefix=cp,
             claude_bin=args.claude_bin,
-            claude_allowed_tools=_flatten_list(args.claude_allowed_tools),
+            claude_allowed_tools=allowed,
             claude_disallowed_tools=_flatten_list(args.claude_disallowed_tools),
             claude_tools=_flatten_list(args.claude_tools),
             claude_max_turns=args.claude_max_turns,
@@ -392,11 +395,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "doctor":
         doctor_spec_path: Path | None = args.spec
         doctor_backend_name: str | None = args.backend
+        dr_allowed = _flatten_list(args.claude_allowed_tools)
+        if args.allow_all and not dr_allowed:
+            dr_allowed = list(_ALL_CLAUDE_TOOLS)
         return _doctor_command(
             doctor_spec_path,
             doctor_backend_name,
             claude_bin=args.claude_bin,
-            claude_allowed_tools=_flatten_list(args.claude_allowed_tools),
+            claude_allowed_tools=dr_allowed,
             claude_disallowed_tools=_flatten_list(args.claude_disallowed_tools),
             claude_tools=_flatten_list(args.claude_tools),
             claude_max_turns=args.claude_max_turns,
@@ -531,7 +537,27 @@ def _read_env_value(key: str) -> str | None:
     return value.strip() or None
 
 
+_ALL_CLAUDE_TOOLS = [
+    "Bash(*)",
+    "Read(*)",
+    "Write(*)",
+    "Edit(*)",
+    "Glob(*)",
+    "Grep(*)",
+    "WebFetch(*)",
+    "WebSearch(*)",
+    "NotebookEdit(*)",
+]
+
+
 def _add_claude_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--allow-all",
+        dest="allow_all",
+        action="store_true",
+        default=False,
+        help="Allow Claude Code to use all tools without permission prompts.",
+    )
     parser.add_argument(
         "--claude-bin",
         type=str,
