@@ -66,6 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     _add_claude_args(run_parser)
+    _add_codex_args(run_parser)
     run_parser.add_argument(
         "--goal",
         type=str,
@@ -140,6 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional backend to validate (defaults to env/default selection).",
     )
     _add_claude_args(doctor_parser)
+    _add_codex_args(doctor_parser)
 
     init_parser = subparsers.add_parser("init", help="Generate a starter spec YAML file.")
     init_parser.add_argument(
@@ -177,12 +179,15 @@ def _run_command(
     claude_max_budget_usd: float | None,
     claude_timeout_seconds: int | None,
     claude_no_session_persistence: bool | None,
+    codex_model: str | None,
+    codex_timeout_seconds: int | None,
 ) -> int:
     """Execute the 'run' subcommand."""
     from spec_orca.agent import Agent
     from spec_orca.architect import SimpleArchitect
     from spec_orca.backends import (
         ClaudeCodeConfig,
+        CodexConfig,
         create_backend,
         resolve_backend_name,
     )
@@ -226,7 +231,15 @@ def _run_command(
             no_session_persistence=no_session,
             timeout=claude_resolved.claude_timeout_seconds,
         )
-        backend = create_backend(name, claude_config=claude_config)
+        codex_config = CodexConfig(
+            model=codex_model,
+            timeout=codex_timeout_seconds,
+        )
+        backend = create_backend(
+            name,
+            claude_config=claude_config,
+            codex_config=codex_config,
+        )
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -332,6 +345,8 @@ def _doctor_command(
     claude_max_budget_usd: float | None,
     claude_timeout_seconds: int | None,
     claude_no_session_persistence: bool | None,
+    codex_model: str | None,
+    codex_timeout_seconds: int | None,
 ) -> int:
     from spec_orca.backends import resolve_backend_name
 
@@ -425,6 +440,8 @@ def main(argv: list[str] | None = None) -> int:
             claude_max_budget_usd=args.claude_max_budget_usd,
             claude_timeout_seconds=args.claude_timeout_seconds,
             claude_no_session_persistence=args.claude_no_session_persistence,
+            codex_model=args.codex_model,
+            codex_timeout_seconds=args.codex_timeout_seconds,
         )
 
     if args.command == "plan":
@@ -448,6 +465,8 @@ def main(argv: list[str] | None = None) -> int:
             claude_max_budget_usd=args.claude_max_budget_usd,
             claude_timeout_seconds=args.claude_timeout_seconds,
             claude_no_session_persistence=args.claude_no_session_persistence,
+            codex_model=args.codex_model,
+            codex_timeout_seconds=args.codex_timeout_seconds,
         )
 
     if args.command == "init":
@@ -581,14 +600,11 @@ def _check_claude_executable(executable: str) -> tuple[bool, str]:
 
 
 def _check_codex_executable() -> tuple[bool, str]:
-    executable = _read_env_value("CODEX_EXECUTABLE") or "codex"
+    executable = "codex"
     if shutil.which(executable) is None:
         return (
             False,
-            (
-                f"Codex CLI not found: '{executable}'. "
-                "Install it or set CODEX_EXECUTABLE."
-            ),
+            (f"Codex CLI not found: '{executable}'. Install it or set CODEX_EXECUTABLE."),
         )
     return True, f"found {executable}"
 
@@ -679,6 +695,21 @@ def _add_claude_args(parser: argparse.ArgumentParser) -> None:
         help="Allow Claude Code to persist sessions to disk.",
     )
     parser.set_defaults(claude_no_session_persistence=None)
+
+
+def _add_codex_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--codex-model",
+        type=str,
+        default=None,
+        help="OpenAI Codex model name (passed as --model).",
+    )
+    parser.add_argument(
+        "--codex-timeout-seconds",
+        type=int,
+        default=None,
+        help="Codex timeout in seconds.",
+    )
 
 
 def _load_config(cwd: Path) -> dict[str, object]:
