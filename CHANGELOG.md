@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Code backend integration (CLI config, validation, and structured output).
 - Project state snapshots with git summaries persisted to state.json.
 - Opt-in auto-commit helper that stages tracked changes only.
+- `spec-orca init` command for scaffolding spec files.
+- `--allow-all` flag for granting Claude Code full tool access.
+- Live progress output during orchestration runs.
+- Resilient structured output handling when Claude runs out of turns.
 
 ## [0.1.0] - 2026-02-02
 

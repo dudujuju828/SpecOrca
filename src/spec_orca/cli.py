@@ -93,6 +93,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Continue executing specs even if a failure occurs.",
     )
     run_parser.add_argument(
+        "--report",
+        type=Path,
+        default=None,
+        help="Path to write a Markdown run report after the run completes.",
+    )
+    run_parser.add_argument(
         "--auto-commit",
         action="store_true",
         default=False,
@@ -135,6 +141,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_claude_args(doctor_parser)
 
+    init_parser = subparsers.add_parser("init", help="Generate a starter spec YAML file.")
+    init_parser.add_argument(
+        "--goal",
+        type=str,
+        required=True,
+        help="High-level project goal for the spec file.",
+    )
+    init_parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("spec.yaml"),
+        help="Output path for the generated spec file (default: spec.yaml).",
+    )
+
     return parser
 
 
@@ -145,6 +165,7 @@ def _run_command(
     *,
     goal_override: str | None,
     state_path: Path | None,
+    report_path: Path | None,
     stop_on_failure: bool,
     auto_commit: bool,
     commit_prefix: str | None,
@@ -217,6 +238,7 @@ def _run_command(
         goal=goal,
         backend_name=name,
     )
+
     def _progress(msg: str) -> None:
         print(msg, file=sys.stderr, flush=True)
 
@@ -230,6 +252,16 @@ def _run_command(
     _print_run_summary(summary)
     run_success = summary.failed == 0
     exit_code = 0 if run_success else 1
+
+    if report_path is not None:
+        from spec_orca.report import render_report
+
+        try:
+            report_md = render_report(summary, context)
+            report_path.write_text(report_md, encoding="utf-8")
+            print(f"Report written to {report_path}.")
+        except OSError as exc:
+            print(f"Error writing report: {exc}", file=sys.stderr)
 
     if state_path is not None:
         try:
@@ -363,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         backend_name: str | None = args.backend
         goal_override: str | None = args.goal
         state_path: Path | None = args.state
+        report_path: Path | None = args.report
         stop_on_failure: bool = args.stop_on_failure
         ac: bool = args.auto_commit
         cp: str | None = args.commit_prefix
@@ -375,6 +408,7 @@ def main(argv: list[str] | None = None) -> int:
             backend_name,
             goal_override=goal_override,
             state_path=state_path,
+            report_path=report_path,
             stop_on_failure=stop_on_failure,
             auto_commit=ac,
             commit_prefix=cp,
@@ -410,6 +444,19 @@ def main(argv: list[str] | None = None) -> int:
             claude_timeout_seconds=args.claude_timeout_seconds,
             claude_no_session_persistence=args.claude_no_session_persistence,
         )
+
+    if args.command == "init":
+        from spec_orca.init import generate_spec
+
+        init_goal: str = args.goal
+        init_output: Path = args.output
+        try:
+            generated = generate_spec(init_goal, init_output)
+        except FileExistsError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        print(f"Spec file created: {generated}")
+        return 0
 
     # No subcommand — print help by default.
     parser.print_help()

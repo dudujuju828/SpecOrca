@@ -58,14 +58,7 @@ spec-orca --version
 spec-orca --help
 
 # Create a minimal spec
-cat > spec.yaml <<'YAML'
-goal: "Ship a greeting"
-specs:
-  - id: "greet"
-    title: "Print hello"
-    acceptance_criteria:
-      - "Program prints 'hello'."
-YAML
+spec-orca init --goal "Ship a greeting"
 
 # Validate and print ordered specs
 spec-orca plan --spec spec.yaml
@@ -84,7 +77,7 @@ spec-orca doctor --spec spec.yaml --backend claude
 
 ```
 $ spec-orca --help
-usage: spec-orca [-h] [--version] {run,plan,doctor} ...
+usage: spec-orca [-h] [--version] {run,plan,doctor,init} ...
 
 SpecOrca — a spec-driven two-role orchestrator (Architect / Agent).
 
@@ -96,6 +89,39 @@ commands:
   run          Run the orchestration loop.
   plan         Validate and print the spec plan.
   doctor       Check environment health.
+  init         Scaffold a new spec YAML file.
+```
+
+## Spec format
+
+Spec files are YAML documents with the following schema:
+
+| Field | Type | Description |
+|---|---|---|
+| `goal` | string | High-level objective for the run. |
+| `specs` | list | Ordered list of spec objects. |
+
+Each spec object contains:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Unique identifier for the spec. |
+| `title` | string | yes | Short human-readable title. |
+| `description` | string | no | Longer explanation of the work. |
+| `acceptance_criteria` | list[string] | yes | Conditions that must be met. |
+| `dependencies` | list[string] | no | IDs of specs that must complete first. |
+
+Example:
+
+```yaml
+goal: "Ship a greeting"
+specs:
+  - id: "greet"
+    title: "Print hello"
+    description: "Create a script that prints a greeting."
+    acceptance_criteria:
+      - "Program prints 'hello'."
+    dependencies: []
 ```
 
 ## Backend notes
