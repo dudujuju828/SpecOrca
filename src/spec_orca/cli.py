@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--backend",
         type=str,
         default=None,
-        choices=["claude", "mock"],
+        choices=["claude", "codex", "mock"],
         help=(
             "Backend to use for execution. Overrides the SPEC_ORCA_BACKEND env var. Default: mock."
         ),
@@ -136,7 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--backend",
         type=str,
         default=None,
-        choices=["claude", "mock"],
+        choices=["claude", "codex", "mock"],
         help="Optional backend to validate (defaults to env/default selection).",
     )
     _add_claude_args(doctor_parser)
@@ -361,7 +361,7 @@ def _doctor_command(
         pass
     elif resolved_backend == "mock":
         checks.append(("backend", True, "mock backend available"))
-    else:
+    elif resolved_backend == "claude":
         claude_resolved = _resolve_claude_config(
             config,
             claude_bin=claude_bin,
@@ -375,6 +375,11 @@ def _doctor_command(
         )
         backend_ok, backend_detail = _check_claude_executable(claude_resolved.claude_bin)
         checks.append(("backend", backend_ok, backend_detail))
+    elif resolved_backend == "codex":
+        backend_ok, backend_detail = _check_codex_executable()
+        checks.append(("backend", backend_ok, backend_detail))
+    else:
+        checks.append(("backend", False, f"Unsupported backend: {resolved_backend}"))
 
     for name, ok, detail in checks:
         status = "OK" if ok else "FAIL"
@@ -570,6 +575,19 @@ def _check_claude_executable(executable: str) -> tuple[bool, str]:
             (
                 f"Claude Code CLI not found: '{executable}'. "
                 "Install it or set CLAUDE_CODE_EXECUTABLE."
+            ),
+        )
+    return True, f"found {executable}"
+
+
+def _check_codex_executable() -> tuple[bool, str]:
+    executable = _read_env_value("CODEX_EXECUTABLE") or "codex"
+    if shutil.which(executable) is None:
+        return (
+            False,
+            (
+                f"Codex CLI not found: '{executable}'. "
+                "Install it or set CODEX_EXECUTABLE."
             ),
         )
     return True, f"found {executable}"

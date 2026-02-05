@@ -99,6 +99,11 @@ class TestBuildParser:
         args = parser.parse_args(["run", "--spec", "foo.yaml"])
         assert args.stop_on_failure is True
 
+    def test_codex_backend_choice_is_accepted(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["run", "--spec", "foo.yaml", "--backend", "codex"])
+        assert args.backend == "codex"
+
 
 class TestMain:
     def test_help_printed_by_default(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -192,6 +197,20 @@ class TestDoctorSubcommand:
         assert rc == 1
         out = capsys.readouterr().out
         assert "backend: FAIL" in out
+
+    def test_doctor_codex_backend_missing_executable(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CODEX_EXECUTABLE", raising=False)
+        monkeypatch.setattr("shutil.which", lambda *_args, **_kwargs: None)
+
+        rc = main(["doctor", "--backend", "codex"])
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Codex CLI not found" in out
 
     def test_doctor_uses_configured_claude_bin(
         self,
