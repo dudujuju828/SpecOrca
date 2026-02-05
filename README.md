@@ -70,11 +70,14 @@ YAML
 # Validate and print ordered specs
 spec-orca plan --spec spec.yaml
 
-# Run with the mock backend
+# Run with the mock backend (no AI, deterministic)
 spec-orca run --spec spec.yaml --backend mock --max-steps 1
 
+# Run with Claude Code (requires claude CLI on PATH)
+spec-orca run --spec spec.yaml --backend claude --max-steps 1 --allow-all
+
 # Check environment health
-spec-orca doctor --spec spec.yaml --backend mock
+spec-orca doctor --spec spec.yaml --backend claude
 ```
 
 ## CLI reference
@@ -117,23 +120,35 @@ spec-orca doctor --backend claude --spec spec.yaml
 
 Minimal run:
 ```bash
-spec-orca run --backend claude --spec spec.yaml --max-steps 1
+spec-orca run --backend claude --spec spec.yaml --max-steps 1 --allow-all
 ```
 
-Safety defaults:
-- SpecOrca expects non-interactive runs, so you must configure tool access
-  explicitly via allow/deny lists.
-- Prefer an allowlist that is as narrow as possible for the task, and use
-  `--claude-disallowed-tools` to explicitly block risky tools.
-- You can restrict to an explicit tool list with `--claude-tools`.
+Tool permissions:
 
-Example (restrictive):
+Claude Code runs in non-interactive (`-p`) mode, which denies all tool use
+by default. You **must** grant permissions or the agent will not be able to
+read, write, or execute anything.
+
+The quickest way to get started is `--allow-all`, which grants access to
+every standard Claude Code tool (Bash, Read, Write, Edit, Glob, Grep,
+WebFetch, WebSearch, NotebookEdit):
+
+```bash
+spec-orca run --backend claude --spec spec.yaml --max-steps 3 --allow-all
+```
+
+For tighter control, pass an explicit allowlist instead:
+
 ```bash
 spec-orca run --backend claude --spec spec.yaml \
-  --claude-allowed-tools "read:*" \
-  --claude-allowed-tools "write:src/*" \
-  --claude-disallowed-tools "rm:*"
+  --claude-allowed-tools "Read(*)" \
+  --claude-allowed-tools "Write(*)" \
+  --claude-allowed-tools "Edit(*)" \
+  --claude-disallowed-tools "Bash(*)"
 ```
+
+You can also block specific tools with `--claude-disallowed-tools` or
+restrict to an exact set with `--claude-tools`.
 
 Claude configuration precedence (highest to lowest):
 1) CLI flags
