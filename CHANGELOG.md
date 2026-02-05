@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live progress output during orchestration runs.
 - Resilient structured output handling when Claude runs out of turns.
 - Codex backend (`--backend codex`) for executing specs via OpenAI's codex CLI.
+- Interactive interview command (`spec-orca interview`) for guided requirements
+  gathering with structured conversation flow and automatic spec YAML generation.
 
 ## [0.1.0] - 2026-02-02
 

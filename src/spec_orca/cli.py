@@ -164,6 +164,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output path for the generated spec file (default: spec.yaml).",
     )
 
+    interview_parser = subparsers.add_parser(
+        "interview", help="Start an interactive interview session."
+    )
+    interview_parser.add_argument(
+        "--backend",
+        type=str,
+        default=None,
+        choices=["claude", "codex", "mock"],
+        help=(
+            "Backend to use for the interview. "
+            "Overrides the SPEC_ORCA_BACKEND env var. Default: mock."
+        ),
+    )
+    interview_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Path to save the generated spec YAML file (e.g. spec.yaml).",
+    )
+
     return parser
 
 
@@ -425,6 +445,60 @@ def _doctor_command(
     return 1 if failures else 0
 
 
+def _interview_command(backend_name: str | None, output_path: Path | None) -> int:
+    """Execute the 'interview' subcommand."""
+    from spec_orca.backends import create_backend, resolve_backend_name
+    from spec_orca.interview import InterviewAgent, InterviewConfig
+
+    name = resolve_backend_name(backend_name)
+    backend = create_backend(name)
+    config = InterviewConfig(repo_path=Path.cwd())
+    agent = InterviewAgent(backend, config)
+
+    print(f"Starting interactive interview session (backend={name})...")
+    print("Type 'quit' or 'exit' to end the session.\n")
+
+    print(f"Interviewer: {agent.greeting()}\n")
+
+    while True:
+        try:
+            user_input = input("You: ")
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+
+        stripped = user_input.strip()
+        if not stripped:
+            continue
+        if stripped.lower() in {"quit", "exit"}:
+            break
+
+        response = agent.send(stripped)
+        print(f"\nInterviewer: {response}\n")
+
+    print("Interview session ended.")
+
+    # -- Generate and display the spec ----------------------------------
+    if agent.history:
+        spec_yaml = agent.generate_spec_yaml()
+        print("\n--- Generated Spec ---")
+        print(spec_yaml)
+
+        if output_path is not None:
+            saved = agent.save_spec(output_path)
+            print(f"Spec saved to {saved}")
+        else:
+            try:
+                answer = input("Save spec to file? [path / blank to skip]: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                answer = ""
+            if answer:
+                saved = agent.save_spec(Path(answer))
+                print(f"Spec saved to {saved}")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -503,6 +577,11 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"Spec file created: {generated}")
         return 0
+
+    if args.command == "interview":
+        interview_backend: str | None = args.backend
+        interview_output: Path | None = args.output
+        return _interview_command(interview_backend, interview_output)
 
     # No subcommand — print help by default.
     parser.print_help()

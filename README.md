@@ -78,7 +78,7 @@ spec-orca doctor --spec spec.yaml --backend claude
 
 ```
 $ spec-orca --help
-usage: spec-orca [-h] [--version] {run,plan,doctor,init} ...
+usage: spec-orca [-h] [--version] {run,plan,doctor,init,interview} ...
 
 SpecOrca — a spec-driven two-role orchestrator (Architect / Agent).
 
@@ -91,6 +91,7 @@ commands:
   plan         Validate and print the spec plan.
   doctor       Check environment health.
   init         Scaffold a new spec YAML file.
+  interview    Start an interactive interview session.
 ```
 
 ## Spec format
@@ -227,6 +228,31 @@ Execution notes:
   2) Config file (`spec-orca.toml` or `[tool.spec_orca]` in `pyproject.toml`)
   3) Environment variables (`CODEX_EXECUTABLE`, `CODEX_MODEL`, `CODEX_TIMEOUT`)
   4) Defaults
+
+## Interactive interview
+
+The `interview` command starts a guided requirements-gathering session. An AI
+interviewer helps you articulate goals, constraints, and acceptance criteria
+through a structured conversation flow:
+
+1. **Scoping** — the interviewer asks what you want to achieve.
+2. **Choice** — you pick between an improvement analysis or your own specific path.
+3. **Follow-up** — the conversation continues with clarifying questions until
+   requirements are clear.
+
+At the end of the session the gathered requirements are compiled into a valid
+spec YAML file that can be fed directly into `spec-orca run`.
+
+```bash
+# Start an interview with the mock backend
+spec-orca interview
+
+# Use a real backend for smarter follow-up questions
+spec-orca interview --backend claude
+
+# Save the generated spec to a file automatically
+spec-orca interview --backend claude --output spec.yaml
+```
 
 ## Development
 

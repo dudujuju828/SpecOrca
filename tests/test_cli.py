@@ -144,6 +144,41 @@ class TestBuildParser:
         assert args.backend == "codex"
 
 
+class TestInterviewSubcommand:
+    def test_interview_subparser_exists(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["interview"])
+        assert args.command == "interview"
+
+    def test_interview_accepts_backend(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["interview", "--backend", "claude"])
+        assert args.backend == "claude"
+
+    def test_interview_backend_default_none(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["interview"])
+        assert args.backend is None
+
+    def test_interview_runs_successfully(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["interview"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "interactive interview session" in out
+
+    def test_interview_with_backend_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["interview", "--backend", "mock"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "backend=mock" in out
+
+    def test_interview_appears_in_help(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "interview" in out
+
+
 class TestMain:
     def test_help_printed_by_default(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = main([])
