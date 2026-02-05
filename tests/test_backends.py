@@ -12,6 +12,8 @@ import pytest
 from spec_orca.backends import (
     ClaudeBackend,
     ClaudeCodeConfig,
+    CodexBackend,
+    CodexConfig,
     MockBackend,
     MockBackendConfig,
     create_backend,
@@ -76,6 +78,7 @@ class TestResolveBackendName:
     def test_case_insensitive(self) -> None:
         assert resolve_backend_name("MOCK") == "mock"
         assert resolve_backend_name("Claude") == "claude"
+        assert resolve_backend_name("Codex") == "codex"
 
     def test_whitespace_stripped(self) -> None:
         assert resolve_backend_name("  mock  ") == "mock"
@@ -96,6 +99,10 @@ class TestCreateBackend:
     def test_creates_claude_with_executable(self) -> None:
         backend = create_backend("claude", claude_executable="/usr/local/bin/claude")
         assert isinstance(backend, ClaudeBackend)
+
+    def test_creates_codex(self) -> None:
+        backend = create_backend("codex")
+        assert isinstance(backend, CodexBackend)
 
     def test_unknown_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown backend"):
@@ -501,3 +508,157 @@ class TestClaudeBackend:
 
         assert result.status == ResultStatus.FAILURE
         assert "structured_output.status" in (result.error or "")
+
+
+class TestCodexBackend:
+    @pytest.fixture(autouse=True)
+    def _stub_git_delta(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "spec_orca.backends.codex.compute_status_delta",
+            lambda *_args, **_kwargs: (GitStatusDelta(changed=[]), None),
+        )
+
+    def test_satisfies_protocol(self) -> None:
+        assert isinstance(CodexBackend(), AgentBackendProtocol)
+
+    def test_returns_failure_when_executable_missing(self) -> None:
+        backend = CodexBackend(CodexConfig(executable="nonexistent-codex-xyz"))
+
+        result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.FAILURE
+        assert "not found" in (result.error or "").lower()
+        assert "CODEX_EXECUTABLE" in (result.error or "")
+
+    def test_builds_expected_command(self) -> None:
+        backend = CodexBackend(
+            CodexConfig(
+                executable="codex",
+                timeout=10,
+                model="gpt-5-codex",
+            )
+        )
+        fake_proc = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=json.dumps({"result": "done"}),
+            stderr="",
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/codex"),
+            mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
+            backend.execute(_make_spec(), _make_context())
+
+        cmd = mock_run.call_args[0][0]
+        assert "-q" in cmd
+        assert "--full-auto" in cmd
+        assert "--json" in cmd
+        assert "--model" in cmd
+        model_index = cmd.index("--model")
+        assert cmd[model_index + 1] == "gpt-5-codex"
+        assert mock_run.call_args.kwargs.get("cwd") == _make_context().repo_path
+        assert mock_run.call_args.kwargs.get("shell") is not True
+
+    def test_exit_zero_with_plain_text_result_is_success(self) -> None:
+        backend = CodexBackend(CodexConfig(executable="codex"))
+        fake_proc = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=json.dumps({"result": "Implemented spec successfully."}),
+            stderr="",
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/codex"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.SUCCESS
+        assert result.summary == "Implemented spec successfully."
+        assert result.error is None
+
+    def test_exit_zero_with_structured_json_in_result_is_mapped(self) -> None:
+        backend = CodexBackend(CodexConfig(executable="codex"))
+        fake_proc = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "result": json.dumps(
+                        {
+                            "status": "partial",
+                            "summary": "Half done.",
+                            "details": "Need one more step.",
+                            "commands_run": ["pytest"],
+                            "error": None,
+                        }
+                    )
+                }
+            ),
+            stderr="",
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/codex"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.PARTIAL
+        assert result.summary == "Half done."
+        assert result.commands_run == ["pytest"]
+        assert result.structured_output is not None
+
+    def test_exit_zero_with_non_json_stdout_is_success(self) -> None:
+        backend = CodexBackend(CodexConfig(executable="codex"))
+        fake_proc = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="plain response text",
+            stderr="",
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/codex"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.SUCCESS
+        assert result.summary == "plain response text"
+
+    def test_nonzero_exit_is_failure(self) -> None:
+        backend = CodexBackend(CodexConfig(executable="codex"))
+        fake_proc = subprocess.CompletedProcess(
+            args=[],
+            returncode=2,
+            stdout="",
+            stderr="failed hard",
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/codex"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.FAILURE
+        assert "failed hard" in (result.error or "")
+
+    def test_timeout_returns_failure(self) -> None:
+        backend = CodexBackend(CodexConfig(executable="codex", timeout=7))
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/codex"),
+            mock.patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired("codex", 7),
+            ),
+        ):
+            result = backend.execute(_make_spec(), _make_context())
+
+        assert result.status == ResultStatus.FAILURE
+        assert "timed out" in (result.error or "").lower()
