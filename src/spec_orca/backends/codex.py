@@ -67,6 +67,8 @@ class CodexBackend(Backend):
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=self._timeout,
                 cwd=context.repo_path,
             )
@@ -77,6 +79,9 @@ class CodexBackend(Backend):
             )
 
         if proc.returncode != 0:
+            import sys
+            sys.stderr.write(f"DEBUG: Codex stdout:\n{proc.stdout}\n")
+            sys.stderr.write(f"DEBUG: Codex stderr:\n{proc.stderr}\n")
             output = proc.stderr.strip() or proc.stdout.strip() or f"Exit code {proc.returncode}"
             return _failure_result(
                 "Codex exited with non-zero status",
@@ -119,6 +124,10 @@ class CodexBackend(Backend):
         cmd = [executable, "exec", "--full-auto", "--json"]
         if self._model:
             cmd.extend(["--model", self._model])
+            # Workaround: local config defaults to 'xhigh' which is invalid for some models.
+            # Override it to 'high' via the correct config key found in ~/.codex/config.toml
+            if "gpt-5-codex" in self._model:
+                cmd.extend(["-c", "model_reasoning_effort=high"])
         cmd.append(prompt)
         return cmd
 
