@@ -69,11 +69,7 @@ class Backend(Protocol):
     def execute(self, spec: Spec, context: Context) -> Result: ...
 ```
 
-Implementations include a deterministic mock backend for tests and a Claude
-Code backend that shells out to the `claude` CLI. The CLI defaults to the mock
-backend for deterministic runs. Any object satisfying the `Backend` protocol
-can be substituted — for example, a backend that calls a different LLM, runs a
-local script, or applies a deterministic code transform.
+Implementations include a deterministic mock backend for tests, a Claude Code backend that shells out to the `claude` CLI, and a Codex backend that shells out to `codex exec --full-auto --json`. The CLI defaults to the mock backend for deterministic runs. Any object satisfying the `Backend` protocol can be substituted — for example, a backend that calls a different LLM, runs a local script, or applies a deterministic code transform.
 
 ### Backend contract
 
@@ -132,7 +128,9 @@ src/spec_orca/
 |-- backends/
 |   |-- __init__.py      # backend factory
 |   |-- mock.py          # deterministic mock backend
-|   `-- claude.py        # Claude Code backend (subprocess)
+|   |-- claude.py        # Claude Code backend (subprocess)
+|   |-- codex.py         # OpenAI Codex backend (subprocess)
+|   `-- codex_schema.py  # Codex prompt helper
 |-- spec.py              # YAML spec loader + validation
 |-- models.py            # Spec, Result, Context models
 |-- state.py             # project state snapshotting

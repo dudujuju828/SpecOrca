@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest import mock
@@ -67,6 +68,44 @@ def _write_fake_claude(tmp_path: Path) -> Path:
     return bin_dir
 
 
+def _write_fake_codex(tmp_path: Path) -> Path:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    payload = json.dumps(
+        {
+            "result": json.dumps(
+                {
+                    "status": "success",
+                    "summary": "ok",
+                    "details": "done",
+                    "commands_run": [],
+                    "notes": [],
+                    "error": None,
+                }
+            )
+        }
+    )
+    if os.name == "nt":
+        script = bin_dir / "codex.cmd"
+        python_script = bin_dir / "codex_fake.py"
+        python_script.write_text(
+            f"print({payload!r})\n",
+            encoding="utf-8",
+        )
+        script.write_text(
+            f'@echo off\r\npython "{python_script}" %*\r\n',
+            encoding="utf-8",
+        )
+    else:
+        script = bin_dir / "codex"
+        script.write_text(
+            f"#!/usr/bin/env sh\nprintf '%s\n' {payload!r}\n",
+            encoding="utf-8",
+        )
+        os.chmod(script, 0o755)
+    return bin_dir
+
+
 class TestBuildParser:
     def test_returns_parser(self) -> None:
         parser = build_parser()
@@ -99,7 +138,7 @@ class TestBuildParser:
         args = parser.parse_args(["run", "--spec", "foo.yaml"])
         assert args.stop_on_failure is True
 
-    def test_codex_backend_choice_is_accepted(self) -> None:
+    def test_run_accepts_codex_backend(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["run", "--spec", "foo.yaml", "--backend", "codex"])
         assert args.backend == "codex"
@@ -203,13 +242,13 @@ class TestDoctorSubcommand:
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.delenv("CODEX_EXECUTABLE", raising=False)
         monkeypatch.setattr("shutil.which", lambda *_args, **_kwargs: None)
 
         rc = main(["doctor", "--backend", "codex"])
 
         assert rc == 1
         out = capsys.readouterr().out
+        assert "backend: FAIL" in out
         assert "Codex CLI not found" in out
 
     def test_doctor_uses_configured_claude_bin(
@@ -263,6 +302,32 @@ claude_bin = "config-claude"
         assert rc == 0
         out = capsys.readouterr().out
         assert "cli-claude" in out
+
+    def test_doctor_uses_configured_codex_bin(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            """[tool.spec_orca]
+codex_bin = "custom-codex"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CODEX_EXECUTABLE", raising=False)
+        monkeypatch.setattr(
+            "shutil.which",
+            lambda value: "/usr/bin/custom-codex" if value == "custom-codex" else None,
+        )
+
+        rc = main(["doctor", "--backend", "codex"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "custom-codex" in out
 
 
 class TestRunAutoCommit:
@@ -388,6 +453,46 @@ specs:
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
 
     rc = main(["run", "--backend", "claude", "--spec", str(spec_path), "--max-steps", "1"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "success" in out
+
+
+def test_run_with_fake_codex_backend(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec_path = tmp_path / "spec.yaml"
+    spec_path.write_text(
+        """goal: "Test run"
+specs:
+  - id: "spec-1"
+    title: "Do work"
+    description: "Try fake Codex."
+    acceptance_criteria:
+      - "Return success"
+""",
+        encoding="utf-8",
+    )
+    bin_dir = _write_fake_codex(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    rc = main(
+        [
+            "run",
+            "--backend",
+            "codex",
+            "--spec",
+            str(spec_path),
+            "--max-steps",
+            "1",
+            "--codex-timeout-seconds",
+            "30",
+        ]
+    )
 
     assert rc == 0
     out = capsys.readouterr().out

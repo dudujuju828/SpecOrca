@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI commands: `run`, `plan`, and `doctor`.
 - Backends: deterministic mock backend and Claude Code backend.
 - Claude Code backend integration (CLI config, validation, and structured output).
+- Codex backend integration (`--backend codex`) with `codex exec --full-auto --json`,
+  CLI config flags, and doctor validation.
 - Project state snapshots with git summaries persisted to state.json.
 - Opt-in auto-commit helper that stages tracked changes only.
 - `spec-orca init` command for scaffolding spec files.

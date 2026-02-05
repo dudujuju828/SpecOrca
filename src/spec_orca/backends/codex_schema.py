@@ -11,7 +11,7 @@ _SCHEMA_INSTRUCTION = "- Return JSON that conforms to the provided JSON Schema."
 
 
 def render_codex_prompt(spec: Spec, context: Context) -> str:
-    """Render the shared prompt, minus Claude-only schema instructions."""
+    """Render the shared prompt minus Claude-specific schema requirements."""
     lines = render_prompt(spec, context).splitlines()
     filtered = [line for line in lines if line.strip() != _SCHEMA_INSTRUCTION]
     return "\n".join(filtered)

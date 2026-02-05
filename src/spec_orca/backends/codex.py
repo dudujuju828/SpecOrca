@@ -15,7 +15,6 @@ from spec_orca.models import Context, Result, ResultStatus, Spec
 
 __all__ = ["CodexBackend", "CodexConfig"]
 
-
 _DEFAULT_TIMEOUT = 300
 _DEFAULT_EXECUTABLE = "codex"
 
@@ -57,7 +56,7 @@ class CodexBackend(Backend):
                 "Codex CLI not found",
                 (
                     f"Codex CLI not found: '{self._executable}'. "
-                    "Install the OpenAI Codex CLI and ensure it is on PATH, "
+                    "Install Codex CLI and ensure it is on PATH, "
                     "or set CODEX_EXECUTABLE to the full path."
                 ),
             )
@@ -117,7 +116,7 @@ class CodexBackend(Backend):
         return shutil.which(self._executable)
 
     def _build_command(self, executable: str, prompt: str) -> list[str]:
-        cmd = [executable, "-q", "--full-auto", "--json"]
+        cmd = [executable, "exec", "--full-auto", "--json"]
         if self._model:
             cmd.extend(["--model", self._model])
         cmd.append(prompt)
@@ -125,12 +124,32 @@ class CodexBackend(Backend):
 
 
 def _extract_result_text(raw_output: str) -> str:
-    parsed = _parse_json_object(raw_output)
-    if parsed is None:
-        return raw_output.strip()
-    result = parsed.get("result")
-    if isinstance(result, str):
-        return result.strip()
+    whole = _parse_json_object(raw_output)
+    if whole is not None:
+        result = whole.get("result")
+        if isinstance(result, str):
+            return result.strip()
+
+    # codex exec --json emits JSONL events; take the last agent_message text.
+    latest_message: str | None = None
+    for line in raw_output.splitlines():
+        event = _parse_json_object(line)
+        if event is None:
+            continue
+        event_type = event.get("type")
+        if event_type != "item.completed":
+            continue
+        item = event.get("item")
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if item_type != "agent_message":
+            continue
+        text = item.get("text")
+        if isinstance(text, str):
+            latest_message = text.strip()
+    if latest_message:
+        return latest_message
     return raw_output.strip()
 
 

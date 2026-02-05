@@ -109,8 +109,10 @@ class ClaudeCodeBackend(Backend):
         # The CLI envelope places the --json-schema response under
         # "structured_output", and the schema itself wraps fields in a
         # "structured_output" key, producing double nesting.  Unwrap it.
-        if isinstance(structured, dict) and "structured_output" in structured and isinstance(
-            structured["structured_output"], dict
+        if (
+            isinstance(structured, dict)
+            and "structured_output" in structured
+            and isinstance(structured["structured_output"], dict)
         ):
             structured = structured["structured_output"]
 
@@ -245,7 +247,11 @@ def _synthesize_from_envelope(parsed: dict[str, Any]) -> Result:
         )
 
     # Claude finished its turns without errors — treat as success.
-    summary = result_text[:120] if result_text else f"Completed in {num_turns} turn(s) (no structured output)"
+    summary = (
+        result_text[:120]
+        if result_text
+        else f"Completed in {num_turns} turn(s) (no structured output)"
+    )
     return Result(
         status=ResultStatus.SUCCESS,
         summary=summary,

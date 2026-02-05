@@ -8,7 +8,7 @@
 
 A spec-driven, two-role orchestration CLI for software tasks.
 An **Architect** decomposes work into precise specifications; an **Agent**
-executes each spec using a swappable coding backend (Claude Code by default).
+executes each spec using a swappable coding backend (mock by default).
 
 | | |
 |---|---|
@@ -28,9 +28,10 @@ SpecOrca runs an iterative loop:
 3. The loop repeats until every spec is resolved or the Architect decides to
    stop.
 
-The coding backend is an interface — the default implementation shells out to
-[Claude Code](https://docs.anthropic.com/en/docs/claude-code), but any backend
-that satisfies the `Backend` protocol can be substituted.
+The coding backend is an interface. SpecOrca ships with deterministic `mock`,
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code), and OpenAI
+Codex backends, but any backend that satisfies the `Backend` protocol can be
+substituted.
 
 ## Prerequisites
 
@@ -198,12 +199,12 @@ claude_no_session_persistence = true
 ## Codex backend
 
 Prerequisites:
-- Install the OpenAI codex CLI.
-- Ensure `codex` is on `PATH`.
+- Install the OpenAI Codex CLI and ensure `codex` is on `PATH`.
+- Verify the binary and doctor checks:
 
-Verify setup:
 ```bash
-spec-orca doctor --backend codex
+codex --version
+spec-orca doctor --backend codex --spec spec.yaml
 ```
 
 Minimal run:
@@ -211,10 +212,21 @@ Minimal run:
 spec-orca run --backend codex --spec spec.yaml --max-steps 1
 ```
 
-Optional model selection:
+Model and timeout options:
 ```bash
-spec-orca run --backend codex --spec spec.yaml --codex-model gpt-5-codex
+spec-orca run --backend codex --spec spec.yaml \
+  --codex-model gpt-5-codex \
+  --codex-timeout-seconds 1800
 ```
+
+Execution notes:
+- SpecOrca invokes Codex as `codex exec --full-auto --json "<prompt>"`.
+- `--full-auto` enables unattended tool execution. Use it only in trusted repos.
+- Codex configuration precedence (highest to lowest):
+  1) CLI flags (`--codex-bin`, `--codex-model`, `--codex-timeout-seconds`)
+  2) Config file (`spec-orca.toml` or `[tool.spec_orca]` in `pyproject.toml`)
+  3) Environment variables (`CODEX_EXECUTABLE`, `CODEX_MODEL`, `CODEX_TIMEOUT`)
+  4) Defaults
 
 ## Development
 

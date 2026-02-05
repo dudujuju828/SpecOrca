@@ -13,6 +13,7 @@ from spec_orca.backends import (
     ClaudeBackend,
     ClaudeCodeConfig,
     CodexBackend,
+    CodexConfig,
     MockBackend,
     MockBackendConfig,
     create_backend,
@@ -77,7 +78,7 @@ class TestResolveBackendName:
     def test_case_insensitive(self) -> None:
         assert resolve_backend_name("MOCK") == "mock"
         assert resolve_backend_name("Claude") == "claude"
-        assert resolve_backend_name("Codex") == "codex"
+        assert resolve_backend_name("CodeX") == "codex"
 
     def test_whitespace_stripped(self) -> None:
         assert resolve_backend_name("  mock  ") == "mock"
@@ -101,6 +102,10 @@ class TestCreateBackend:
 
     def test_creates_codex(self) -> None:
         backend = create_backend("codex")
+        assert isinstance(backend, CodexBackend)
+
+    def test_creates_codex_with_config(self) -> None:
+        backend = create_backend("codex", codex_config=CodexConfig(model="gpt-5-codex"))
         assert isinstance(backend, CodexBackend)
 
     def test_unknown_raises(self) -> None:

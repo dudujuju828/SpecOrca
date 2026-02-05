@@ -104,13 +104,9 @@ class Orchestrator:
                 stopped_reason = "no_runnable_specs"
                 break
             spec = self._architect.mark_in_progress(spec.id)
-            _log(
-                f"[step {steps + 1}/{max_steps}] Running spec '{spec.id}': {spec.title} ..."
-            )
+            _log(f"[step {steps + 1}/{max_steps}] Running spec '{spec.id}': {spec.title} ...")
             result = self._agent.execute(spec, self._context)
-            _log(
-                f"[step {steps + 1}/{max_steps}] Spec '{spec.id}' -> {result.status.value}"
-            )
+            _log(f"[step {steps + 1}/{max_steps}] Spec '{spec.id}' -> {result.status.value}")
             results.append(result)
             updated = self._architect.record_result(spec.id, result)
             step_details.append(

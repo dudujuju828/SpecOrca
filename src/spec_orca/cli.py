@@ -30,6 +30,13 @@ class _ClaudeResolved:
     claude_no_session_persistence: bool | None
 
 
+@dataclass(frozen=True)
+class _CodexResolved:
+    codex_bin: str
+    codex_timeout_seconds: int | None
+    codex_model: str | None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="spec-orca",
@@ -179,6 +186,7 @@ def _run_command(
     claude_max_budget_usd: float | None,
     claude_timeout_seconds: int | None,
     claude_no_session_persistence: bool | None,
+    codex_bin: str | None,
     codex_model: str | None,
     codex_timeout_seconds: int | None,
 ) -> int:
@@ -231,9 +239,16 @@ def _run_command(
             no_session_persistence=no_session,
             timeout=claude_resolved.claude_timeout_seconds,
         )
+        codex_resolved = _resolve_codex_config(
+            config,
+            codex_bin=codex_bin,
+            codex_model=codex_model,
+            codex_timeout_seconds=codex_timeout_seconds,
+        )
         codex_config = CodexConfig(
-            model=codex_model,
-            timeout=codex_timeout_seconds,
+            executable=codex_resolved.codex_bin,
+            timeout=codex_resolved.codex_timeout_seconds,
+            model=codex_resolved.codex_model,
         )
         backend = create_backend(
             name,
@@ -345,6 +360,7 @@ def _doctor_command(
     claude_max_budget_usd: float | None,
     claude_timeout_seconds: int | None,
     claude_no_session_persistence: bool | None,
+    codex_bin: str | None,
     codex_model: str | None,
     codex_timeout_seconds: int | None,
 ) -> int:
@@ -390,11 +406,15 @@ def _doctor_command(
         )
         backend_ok, backend_detail = _check_claude_executable(claude_resolved.claude_bin)
         checks.append(("backend", backend_ok, backend_detail))
-    elif resolved_backend == "codex":
-        backend_ok, backend_detail = _check_codex_executable()
-        checks.append(("backend", backend_ok, backend_detail))
     else:
-        checks.append(("backend", False, f"Unsupported backend: {resolved_backend}"))
+        codex_resolved = _resolve_codex_config(
+            config,
+            codex_bin=codex_bin,
+            codex_model=codex_model,
+            codex_timeout_seconds=codex_timeout_seconds,
+        )
+        backend_ok, backend_detail = _check_codex_executable(codex_resolved.codex_bin)
+        checks.append(("backend", backend_ok, backend_detail))
 
     for name, ok, detail in checks:
         status = "OK" if ok else "FAIL"
@@ -440,6 +460,7 @@ def main(argv: list[str] | None = None) -> int:
             claude_max_budget_usd=args.claude_max_budget_usd,
             claude_timeout_seconds=args.claude_timeout_seconds,
             claude_no_session_persistence=args.claude_no_session_persistence,
+            codex_bin=args.codex_bin,
             codex_model=args.codex_model,
             codex_timeout_seconds=args.codex_timeout_seconds,
         )
@@ -465,6 +486,7 @@ def main(argv: list[str] | None = None) -> int:
             claude_max_budget_usd=args.claude_max_budget_usd,
             claude_timeout_seconds=args.claude_timeout_seconds,
             claude_no_session_persistence=args.claude_no_session_persistence,
+            codex_bin=args.codex_bin,
             codex_model=args.codex_model,
             codex_timeout_seconds=args.codex_timeout_seconds,
         )
@@ -599,8 +621,7 @@ def _check_claude_executable(executable: str) -> tuple[bool, str]:
     return True, f"found {executable}"
 
 
-def _check_codex_executable() -> tuple[bool, str]:
-    executable = "codex"
+def _check_codex_executable(executable: str) -> tuple[bool, str]:
     if shutil.which(executable) is None:
         return (
             False,
@@ -698,6 +719,12 @@ def _add_claude_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_codex_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--codex-bin",
+        type=str,
+        default=None,
+        help="Codex executable path/name (overrides CODEX_EXECUTABLE).",
+    )
     parser.add_argument(
         "--codex-model",
         type=str,
@@ -845,6 +872,61 @@ def _resolve_file_claude_config(config: dict[str, object]) -> _ClaudeResolved:
         claude_max_budget_usd=_config_float(value.get("claude_max_budget_usd")),
         claude_timeout_seconds=_config_int(value.get("claude_timeout_seconds")),
         claude_no_session_persistence=_config_bool(value.get("claude_no_session_persistence")),
+    )
+
+
+def _resolve_codex_config(
+    config: dict[str, object],
+    *,
+    codex_bin: str | None = None,
+    codex_model: str | None = None,
+    codex_timeout_seconds: int | None = None,
+) -> _CodexResolved:
+    env = _resolve_env_codex_config()
+    file_config = _resolve_file_codex_config(config)
+
+    codex_bin_resolved = file_config.codex_bin or env.codex_bin
+    codex_model_resolved = file_config.codex_model or env.codex_model
+    codex_timeout_resolved = (
+        file_config.codex_timeout_seconds
+        if file_config.codex_timeout_seconds is not None
+        else env.codex_timeout_seconds
+    )
+
+    if codex_bin is not None:
+        codex_bin_resolved = codex_bin
+    if codex_model is not None:
+        codex_model_resolved = codex_model
+    if codex_timeout_seconds is not None:
+        codex_timeout_resolved = codex_timeout_seconds
+
+    return _CodexResolved(
+        codex_bin=codex_bin_resolved,
+        codex_timeout_seconds=codex_timeout_resolved,
+        codex_model=codex_model_resolved,
+    )
+
+
+def _resolve_env_codex_config() -> _CodexResolved:
+    return _CodexResolved(
+        codex_bin=_read_env_value("CODEX_EXECUTABLE") or "codex",
+        codex_timeout_seconds=_env_int("CODEX_TIMEOUT") or 300,
+        codex_model=_read_env_value("CODEX_MODEL"),
+    )
+
+
+def _resolve_file_codex_config(config: dict[str, object]) -> _CodexResolved:
+    value = config.get("codex", config)
+    if not isinstance(value, dict):
+        return _CodexResolved(
+            codex_bin="",
+            codex_timeout_seconds=None,
+            codex_model=None,
+        )
+    return _CodexResolved(
+        codex_bin=_config_str(value.get("codex_bin")) or "",
+        codex_timeout_seconds=_config_int(value.get("codex_timeout_seconds")),
+        codex_model=_config_str(value.get("codex_model")),
     )
 
 
