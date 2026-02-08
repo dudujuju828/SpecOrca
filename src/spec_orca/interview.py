@@ -15,12 +15,12 @@ import enum
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from spec_orca.backend import Backend
-from spec_orca.models import Context, Result, Spec
+if TYPE_CHECKING:
+    from spec_orca.backend import Backend
 
 __all__ = ["InterviewAgent", "InterviewConfig", "InterviewPhase"]
 
@@ -147,33 +147,16 @@ class InterviewAgent:
     def _send_to_backend(self, user_input: str) -> str:
         """Forward a message to the backend and return its textual response."""
         prompt = self._build_prompt(user_input)
-        result = self._execute(prompt)
-        response = result.summary or result.details or ""
+        response = self._backend.chat(prompt, cwd=self._config.repo_path)
         self._history.append((user_input, response))
         return response
 
     def _send_to_backend_with_context(self, user_input: str, extra_context: str) -> str:
         """Forward a message to the backend with additional context injected."""
         prompt = self._build_prompt(user_input, extra_context=extra_context)
-        result = self._execute(prompt)
-        response = result.summary or result.details or ""
+        response = self._backend.chat(prompt, cwd=self._config.repo_path)
         self._history.append((user_input, response))
         return response
-
-    def _execute(self, prompt: str) -> Result:
-        spec = Spec(
-            id="interview",
-            title="Interview",
-            description=prompt,
-            acceptance_criteria=["Respond as an interviewer helping gather requirements."],
-        )
-        context = Context(
-            repo_path=self._config.repo_path,
-            spec_path=self._config.repo_path / "interview",
-            goal="requirements-gathering interview",
-            backend_name="interview",
-        )
-        return self._backend.execute(spec, context)
 
     def generate_spec_yaml(self) -> str:
         """Compile gathered requirements into a valid spec YAML string.

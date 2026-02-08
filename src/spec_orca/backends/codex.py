@@ -6,6 +6,7 @@ import json
 import shutil
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import cast
 
 from spec_orca.backend import Backend
@@ -80,6 +81,7 @@ class CodexBackend(Backend):
 
         if proc.returncode != 0:
             import sys
+
             sys.stderr.write(f"DEBUG: Codex stdout:\n{proc.stdout}\n")
             sys.stderr.write(f"DEBUG: Codex stderr:\n{proc.stderr}\n")
             output = proc.stderr.strip() or proc.stdout.strip() or f"Exit code {proc.returncode}"
@@ -116,6 +118,34 @@ class CodexBackend(Backend):
             error=parsed.error,
             structured_output=parsed.structured_output,
         )
+
+    def chat(self, prompt: str, *, cwd: Path | None = None) -> str:
+        """Send a conversational prompt and return raw text (no JSON mode)."""
+        executable = self._resolve_executable()
+        if executable is None:
+            return f"Error: Codex CLI not found: '{self._executable}'"
+
+        cmd = [executable, "exec", "--full-auto", prompt]
+        if self._model:
+            cmd.extend(["--model", self._model])
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self._timeout,
+                cwd=cwd,
+            )
+        except subprocess.TimeoutExpired:
+            return f"Error: Codex timed out after {self._timeout} seconds."
+
+        if proc.returncode != 0:
+            output = proc.stderr.strip() or proc.stdout.strip() or f"Exit code {proc.returncode}"
+            return f"Error: Codex failed (exit {proc.returncode}): {output}"
+
+        return proc.stdout.strip()
 
     def _resolve_executable(self) -> str | None:
         return shutil.which(self._executable)

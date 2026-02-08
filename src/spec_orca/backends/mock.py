@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import overload
 
 from spec_orca.models import (
@@ -28,6 +29,7 @@ class MockBackendConfig:
     files_changed: list[str] = field(default_factory=list)
     commands_run: list[str] = field(default_factory=list)
     error: str | None = None
+    chat_response: str | None = None
 
 
 class MockBackend:
@@ -77,6 +79,12 @@ class MockBackend:
             files_touched=tuple(self._config.files_changed),
             commands_run=tuple(self._config.commands_run),
         )
+
+    def chat(self, prompt: str, *, cwd: Path | None = None) -> str:
+        """Return a conversational text response."""
+        if self._config.chat_response is not None:
+            return self._config.chat_response
+        return f"[mock] {prompt}"
 
     def _execute_spec(self, spec: Spec) -> Result:
         summary = self._config.summary or f"Mock execution of spec '{spec.title}'"

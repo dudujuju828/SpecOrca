@@ -175,6 +175,22 @@ class TestMockBackend:
         assert result.status == ResultStatus.ERROR
         assert result.error == "bad"
 
+    def test_chat_default_echo(self) -> None:
+        backend = MockBackend()
+        result = backend.chat("hello world")
+        assert result == "[mock] hello world"
+
+    def test_chat_configured_response(self) -> None:
+        config = MockBackendConfig(chat_response="custom reply")
+        backend = MockBackend(config=config)
+        result = backend.chat("anything")
+        assert result == "custom reply"
+
+    def test_chat_cwd_accepted(self) -> None:
+        backend = MockBackend()
+        result = backend.chat("test", cwd=Path("/tmp"))
+        assert result == "[mock] test"
+
 
 # -- ClaudeBackend ----------------------------------------------------------
 
@@ -512,3 +528,78 @@ class TestClaudeBackend:
 
         assert result.status == ResultStatus.FAILURE
         assert "structured_output.status" in (result.error or "")
+
+    def test_chat_returns_text(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        fake_proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="  Hello there  ", stderr=""
+        )
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.chat("hi")
+
+        assert result == "Hello there"
+
+    def test_chat_uses_text_output_format(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        fake_proc = subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr="")
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
+            backend.chat("hi")
+
+        cmd = mock_run.call_args[0][0]
+        assert "--output-format" in cmd
+        assert "text" in cmd
+        assert "--json-schema" not in cmd
+
+    def test_chat_missing_executable(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="nonexistent-xyz"))
+        result = backend.chat("hi")
+        assert result.startswith("Error:")
+        assert "not found" in result.lower()
+
+    def test_chat_timeout(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude", timeout=5))
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired("claude", 5),
+            ),
+        ):
+            result = backend.chat("hi")
+
+        assert result.startswith("Error:")
+        assert "timed out" in result.lower()
+
+    def test_chat_nonzero_exit(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        fake_proc = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="bad")
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc),
+        ):
+            result = backend.chat("hi")
+
+        assert result.startswith("Error:")
+        assert "bad" in result
+
+    def test_chat_passes_cwd(self) -> None:
+        backend = ClaudeBackend(ClaudeCodeConfig(executable="claude"))
+        fake_proc = subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr="")
+
+        with (
+            mock.patch("shutil.which", return_value="/usr/bin/claude"),
+            mock.patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
+            backend.chat("hi", cwd=Path("/my/project"))
+
+        assert mock_run.call_args.kwargs["cwd"] == Path("/my/project")

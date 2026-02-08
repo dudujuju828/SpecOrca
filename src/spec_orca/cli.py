@@ -183,6 +183,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to save the generated spec YAML file (e.g. spec.yaml).",
     )
+    _add_claude_args(interview_parser)
+    _add_codex_args(interview_parser)
 
     return parser
 
@@ -445,13 +447,75 @@ def _doctor_command(
     return 1 if failures else 0
 
 
-def _interview_command(backend_name: str | None, output_path: Path | None) -> int:
+def _interview_command(
+    backend_name: str | None,
+    output_path: Path | None,
+    *,
+    claude_bin: str | None,
+    claude_allowed_tools: list[str] | None,
+    claude_disallowed_tools: list[str] | None,
+    claude_tools: list[str] | None,
+    claude_max_turns: int | None,
+    claude_max_budget_usd: float | None,
+    claude_timeout_seconds: int | None,
+    claude_no_session_persistence: bool | None,
+    codex_bin: str | None,
+    codex_model: str | None,
+    codex_timeout_seconds: int | None,
+) -> int:
     """Execute the 'interview' subcommand."""
-    from spec_orca.backends import create_backend, resolve_backend_name
+    from spec_orca.backends import (
+        ClaudeCodeConfig,
+        CodexConfig,
+        create_backend,
+        resolve_backend_name,
+    )
     from spec_orca.interview import InterviewAgent, InterviewConfig
 
     name = resolve_backend_name(backend_name)
-    backend = create_backend(name)
+    file_config = _load_config(Path.cwd())
+    claude_resolved = _resolve_claude_config(
+        file_config,
+        claude_bin=claude_bin,
+        claude_allowed_tools=claude_allowed_tools,
+        claude_disallowed_tools=claude_disallowed_tools,
+        claude_tools=claude_tools,
+        claude_max_turns=claude_max_turns,
+        claude_max_budget_usd=claude_max_budget_usd,
+        claude_timeout_seconds=claude_timeout_seconds,
+        claude_no_session_persistence=claude_no_session_persistence,
+    )
+    no_session = (
+        claude_resolved.claude_no_session_persistence
+        if claude_resolved.claude_no_session_persistence is not None
+        else True
+    )
+    claude_config = ClaudeCodeConfig(
+        executable=claude_resolved.claude_bin,
+        allowed_tools=claude_resolved.claude_allowed_tools,
+        disallowed_tools=claude_resolved.claude_disallowed_tools,
+        tools=claude_resolved.claude_tools,
+        max_turns=claude_resolved.claude_max_turns,
+        max_budget_usd=claude_resolved.claude_max_budget_usd,
+        no_session_persistence=no_session,
+        timeout=claude_resolved.claude_timeout_seconds,
+    )
+    codex_resolved = _resolve_codex_config(
+        file_config,
+        codex_bin=codex_bin,
+        codex_model=codex_model,
+        codex_timeout_seconds=codex_timeout_seconds,
+    )
+    codex_config = CodexConfig(
+        executable=codex_resolved.codex_bin,
+        timeout=codex_resolved.codex_timeout_seconds,
+        model=codex_resolved.codex_model,
+    )
+    backend = create_backend(
+        name,
+        claude_config=claude_config,
+        codex_config=codex_config,
+    )
     config = InterviewConfig(repo_path=Path.cwd())
     agent = InterviewAgent(backend, config)
 
@@ -581,7 +645,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "interview":
         interview_backend: str | None = args.backend
         interview_output: Path | None = args.output
-        return _interview_command(interview_backend, interview_output)
+        iv_allowed = _flatten_list(args.claude_allowed_tools)
+        if args.allow_all and not iv_allowed:
+            iv_allowed = list(_ALL_CLAUDE_TOOLS)
+        return _interview_command(
+            interview_backend,
+            interview_output,
+            claude_bin=args.claude_bin,
+            claude_allowed_tools=iv_allowed,
+            claude_disallowed_tools=_flatten_list(args.claude_disallowed_tools),
+            claude_tools=_flatten_list(args.claude_tools),
+            claude_max_turns=args.claude_max_turns,
+            claude_max_budget_usd=args.claude_max_budget_usd,
+            claude_timeout_seconds=args.claude_timeout_seconds,
+            claude_no_session_persistence=args.claude_no_session_persistence,
+            codex_bin=args.codex_bin,
+            codex_model=args.codex_model,
+            codex_timeout_seconds=args.codex_timeout_seconds,
+        )
 
     # No subcommand — print help by default.
     parser.print_help()

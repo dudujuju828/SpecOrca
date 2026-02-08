@@ -149,6 +149,65 @@ def test_missing_executable_returns_failure(tmp_path: Path) -> None:
     assert "CODEX_EXECUTABLE" in (result.error or "")
 
 
+def test_chat_returns_text(tmp_path: Path) -> None:
+    backend = CodexBackend(CodexConfig(executable="codex"))
+
+    with (
+        mock.patch("shutil.which", return_value="/usr/bin/codex"),
+        mock.patch(
+            "subprocess.run",
+            return_value=_completed(stdout="  Conversational reply  "),
+        ),
+    ):
+        result = backend.chat("hello", cwd=tmp_path)
+
+    assert result == "Conversational reply"
+
+
+def test_chat_no_json_flag(tmp_path: Path) -> None:
+    backend = CodexBackend(CodexConfig(executable="codex"))
+
+    with (
+        mock.patch("shutil.which", return_value="/usr/bin/codex"),
+        mock.patch(
+            "subprocess.run",
+            return_value=_completed(stdout="ok"),
+        ) as mocked_run,
+    ):
+        backend.chat("hello", cwd=tmp_path)
+
+    cmd = mocked_run.call_args[0][0]
+    assert "--json" not in cmd
+    assert "exec" in cmd
+    assert "--full-auto" in cmd
+
+
+def test_chat_missing_executable() -> None:
+    backend = CodexBackend(CodexConfig(executable="missing-codex"))
+
+    with mock.patch("shutil.which", return_value=None):
+        result = backend.chat("hi")
+
+    assert result.startswith("Error:")
+    assert "not found" in result.lower()
+
+
+def test_chat_timeout(tmp_path: Path) -> None:
+    backend = CodexBackend(CodexConfig(executable="codex", timeout=10))
+
+    with (
+        mock.patch("shutil.which", return_value="/usr/bin/codex"),
+        mock.patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired("codex", 10),
+        ),
+    ):
+        result = backend.chat("hi", cwd=tmp_path)
+
+    assert result.startswith("Error:")
+    assert "timed out" in result.lower()
+
+
 def test_success_with_jsonl_event_stream(tmp_path: Path) -> None:
     backend = CodexBackend(CodexConfig(executable="codex"))
     response = {

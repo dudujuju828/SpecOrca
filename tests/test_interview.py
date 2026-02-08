@@ -17,8 +17,10 @@ from spec_orca.interview import (
     InterviewAgent,
     InterviewConfig,
     InterviewPhase,
+    _extract_criteria,
+    _placeholder_spec_entry,
+    _truncate,
 )
-from spec_orca.models import ResultStatus
 
 
 class TestInterviewAgent:
@@ -46,42 +48,42 @@ class TestInterviewAgent:
         assert agent.greeting() == SCOPING_QUESTION
 
     def test_send_returns_text(self) -> None:
-        config = MockBackendConfig(summary="What is your goal?")
+        config = MockBackendConfig(chat_response="What is your goal?")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
         # First send goes through scoping -> returns the binary choice
         response = agent.send("I want to build a web app")
         assert response == CHOICE_QUESTION
 
-    def test_send_calls_backend_execute(self) -> None:
+    def test_send_calls_backend_chat(self) -> None:
         backend = MockBackend()
         agent = InterviewAgent(backend)
         # Advance past scoping and choice to reach backend-backed phase
         agent.send("I want a REST API")
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             agent.send("I have a specific path")
             mocked.assert_called_once()
 
-    def test_send_includes_persona_in_description(self) -> None:
+    def test_send_includes_persona_in_prompt(self) -> None:
         backend = MockBackend()
         agent = InterviewAgent(backend)
         agent.send("I need a REST API")  # scoping
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             agent.send("own path")  # choice -> own_path, hits backend
-            spec = mocked.call_args[0][0]
-            assert INTERVIEWER_PERSONA in spec.description
+            prompt = mocked.call_args[0][0]
+            assert INTERVIEWER_PERSONA in prompt
 
-    def test_send_includes_user_input_in_description(self) -> None:
+    def test_send_includes_user_input_in_prompt(self) -> None:
         backend = MockBackend()
         agent = InterviewAgent(backend)
         agent.send("Build a CLI tool")  # scoping
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             agent.send("my own path please")  # choice
-            spec = mocked.call_args[0][0]
-            assert "my own path please" in spec.description
+            prompt = mocked.call_args[0][0]
+            assert "my own path please" in prompt
 
     def test_history_tracks_exchanges(self) -> None:
-        config = MockBackendConfig(summary="Tell me more")
+        config = MockBackendConfig(chat_response="Tell me more")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
         agent.send("first message")  # scoping -> CHOICE_QUESTION
@@ -99,19 +101,19 @@ class TestInterviewAgent:
         assert len(agent.history) == 1
 
     def test_second_send_includes_history_in_prompt(self) -> None:
-        config = MockBackendConfig(summary="Noted")
+        config = MockBackendConfig(chat_response="Noted")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
         agent.send("first")  # scoping
         agent.send("improvement")  # choice -> IMPROVEMENT phase
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             agent.send("more details")  # follow-up in IMPROVEMENT phase
-            spec = mocked.call_args[0][0]
-            assert "User: first" in spec.description
-            assert "User: more details" in spec.description
+            prompt = mocked.call_args[0][0]
+            assert "User: first" in prompt
+            assert "User: more details" in prompt
 
-    def test_send_with_failure_result(self) -> None:
-        config = MockBackendConfig(status=ResultStatus.FAILURE, summary="Error occurred")
+    def test_send_with_error_response(self) -> None:
+        config = MockBackendConfig(chat_response="Error occurred")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
         # scoping phase doesn't hit backend, so advance
@@ -135,7 +137,7 @@ class TestInterviewConversationFlow:
         assert agent.phase == InterviewPhase.CHOICE
 
     def test_choice_improvement_sets_phase(self) -> None:
-        config = MockBackendConfig(summary="Here are some improvements")
+        config = MockBackendConfig(chat_response="Here are some improvements")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
         agent.send("I want to build a web app")
@@ -143,7 +145,7 @@ class TestInterviewConversationFlow:
         assert agent.phase == InterviewPhase.IMPROVEMENT
 
     def test_choice_own_path_sets_phase(self) -> None:
-        config = MockBackendConfig(summary="Tell me more about your path")
+        config = MockBackendConfig(chat_response="Tell me more about your path")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
         agent.send("I want to build a web app")
@@ -154,39 +156,39 @@ class TestInterviewConversationFlow:
         backend = MockBackend()
         agent = InterviewAgent(backend)
         agent.send("I want to refactor")
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             agent.send("analyze and find improvements")
-            spec = mocked.call_args[0][0]
-            assert IMPROVEMENT_PROMPT in spec.description
+            prompt = mocked.call_args[0][0]
+            assert IMPROVEMENT_PROMPT in prompt
 
     def test_own_path_branch_includes_own_path_prompt(self) -> None:
         backend = MockBackend()
         agent = InterviewAgent(backend)
         agent.send("I want to add auth")
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             agent.send("I know exactly what I want")
-            spec = mocked.call_args[0][0]
-            assert OWN_PATH_PROMPT in spec.description
+            prompt = mocked.call_args[0][0]
+            assert OWN_PATH_PROMPT in prompt
 
     def test_improvement_followup_hits_backend(self) -> None:
-        config = MockBackendConfig(summary="suggestion")
+        config = MockBackendConfig(chat_response="suggestion")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
         agent.send("build a service")
         agent.send("improvement")
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             response = agent.send("tell me more")
             mocked.assert_called_once()
         assert response == "suggestion"
         assert agent.phase == InterviewPhase.IMPROVEMENT
 
     def test_own_path_followup_hits_backend(self) -> None:
-        config = MockBackendConfig(summary="got it")
+        config = MockBackendConfig(chat_response="got it")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
         agent.send("build a service")
         agent.send("my own path")
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             response = agent.send("I need endpoint X")
             mocked.assert_called_once()
         assert response == "got it"
@@ -195,7 +197,7 @@ class TestInterviewConversationFlow:
     def test_scoping_does_not_call_backend(self) -> None:
         backend = MockBackend()
         agent = InterviewAgent(backend)
-        with mock.patch.object(backend, "execute", wraps=backend.execute) as mocked:
+        with mock.patch.object(backend, "chat", wraps=backend.chat) as mocked:
             agent.send("I want something")
             mocked.assert_not_called()
 
@@ -216,7 +218,7 @@ class TestInterviewConversationFlow:
             assert agent.phase == InterviewPhase.OWN_PATH, f"Failed for text: {text}"
 
     def test_full_improvement_conversation(self) -> None:
-        config = MockBackendConfig(summary="backend response")
+        config = MockBackendConfig(chat_response="backend response")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
 
@@ -240,7 +242,7 @@ class TestInterviewConversationFlow:
         assert response == "backend response"
 
     def test_full_own_path_conversation(self) -> None:
-        config = MockBackendConfig(summary="backend response")
+        config = MockBackendConfig(chat_response="backend response")
         backend = MockBackend(config=config)
         agent = InterviewAgent(backend)
 
@@ -327,3 +329,92 @@ class TestInterviewCLI:
         # No interviewer response should be printed for empty inputs
         # but the greeting is always printed
         assert SCOPING_QUESTION in out
+
+
+class TestSpecYamlGeneration:
+    """Tests for generate_spec_yaml(), save_spec(), and _extract_goal()."""
+
+    def test_generate_spec_yaml_with_history(self) -> None:
+        config = MockBackendConfig(chat_response="- criterion one\n- criterion two")
+        backend = MockBackend(config=config)
+        agent = InterviewAgent(backend)
+        agent.send("Build a REST API")  # scoping
+        agent.send("my own path")  # choice -> own_path
+
+        yaml_str = agent.generate_spec_yaml()
+        assert "Build a REST API" in yaml_str
+        assert "spec-1" in yaml_str
+        assert "criterion one" in yaml_str
+
+    def test_generate_spec_yaml_no_history(self) -> None:
+        backend = MockBackend()
+        agent = InterviewAgent(backend)
+
+        yaml_str = agent.generate_spec_yaml()
+        assert "Unspecified goal" in yaml_str
+        assert "spec-1" in yaml_str
+        assert "TODO" in yaml_str
+
+    def test_save_spec(self, tmp_path: Path) -> None:
+        config = MockBackendConfig(chat_response="looks good")
+        backend = MockBackend(config=config)
+        agent = InterviewAgent(backend)
+        agent.send("My goal")
+        agent.send("own path")
+
+        out_path = tmp_path / "subdir" / "spec.yaml"
+        result = agent.save_spec(out_path)
+        assert result.exists()
+        content = result.read_text(encoding="utf-8")
+        assert "My goal" in content
+
+    def test_extract_goal_from_history(self) -> None:
+        backend = MockBackend()
+        agent = InterviewAgent(backend)
+        agent.send("Build a CLI tool")
+        assert agent._extract_goal() == "Build a CLI tool"
+
+    def test_extract_goal_fallback(self) -> None:
+        backend = MockBackend()
+        agent = InterviewAgent(backend)
+        assert agent._extract_goal() == "Unspecified goal"
+
+
+class TestHelperFunctions:
+    """Tests for module-level helper functions."""
+
+    def test_extract_criteria_bullets(self) -> None:
+        text = "Some intro\n- first item\n- second item\n"
+        result = _extract_criteria(text)
+        assert result == ["first item", "second item"]
+
+    def test_extract_criteria_star_bullets(self) -> None:
+        text = "* item A\n* item B"
+        result = _extract_criteria(text)
+        assert result == ["item A", "item B"]
+
+    def test_extract_criteria_no_bullets_fallback(self) -> None:
+        text = "Just a plain sentence."
+        result = _extract_criteria(text)
+        assert len(result) == 1
+        assert "Just a plain sentence." in result[0]
+
+    def test_extract_criteria_empty(self) -> None:
+        assert _extract_criteria("") == []
+
+    def test_truncate_short(self) -> None:
+        assert _truncate("hello", 10) == "hello"
+
+    def test_truncate_long(self) -> None:
+        result = _truncate("a" * 100, 20)
+        assert len(result) == 20
+        assert result.endswith("...")
+
+    def test_truncate_collapses_whitespace(self) -> None:
+        assert _truncate("hello   world", 60) == "hello world"
+
+    def test_placeholder_spec_entry(self) -> None:
+        entry = _placeholder_spec_entry()
+        assert entry["id"] == "spec-1"
+        assert "TODO" in entry["title"]
+        assert entry["dependencies"] == []

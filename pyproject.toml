@@ -27,6 +27,12 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[project.urls]
+Homepage = "https://github.com/dudujuju828/SpecOrca"
+Repository = "https://github.com/dudujuju828/SpecOrca"
+Changelog = "https://github.com/dudujuju828/SpecOrca/blob/master/CHANGELOG.md"
+Issues = "https://github.com/dudujuju828/SpecOrca/issues"
+
 [project.scripts]
 spec-orca = "spec_orca.cli:main"
 # Deprecated alias (will be removed in a future release)
@@ -42,6 +48,8 @@ dev = [
     "types-PyYAML>=6.0",
     "pre-commit>=4.0",
     "nox>=2024.4",
+    "build>=1.0",
+    "twine>=6.0",
 ]
 
 [tool.setuptools.packages.find]

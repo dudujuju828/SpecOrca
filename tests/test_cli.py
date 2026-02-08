@@ -161,13 +161,15 @@ class TestInterviewSubcommand:
         assert args.backend is None
 
     def test_interview_runs_successfully(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main(["interview"])
+        with mock.patch("builtins.input", side_effect=["exit"]):
+            rc = main(["interview"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "interactive interview session" in out
 
     def test_interview_with_backend_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main(["interview", "--backend", "mock"])
+        with mock.patch("builtins.input", side_effect=["exit"]):
+            rc = main(["interview", "--backend", "mock"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "backend=mock" in out
@@ -177,6 +179,26 @@ class TestInterviewSubcommand:
         assert rc == 0
         out = capsys.readouterr().out
         assert "interview" in out
+
+    def test_interview_accepts_claude_bin(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["interview", "--claude-bin", "/usr/bin/my-claude"])
+        assert args.claude_bin == "/usr/bin/my-claude"
+
+    def test_interview_accepts_claude_max_turns(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["interview", "--claude-max-turns", "5"])
+        assert args.claude_max_turns == 5
+
+    def test_interview_accepts_codex_bin(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["interview", "--codex-bin", "/usr/bin/my-codex"])
+        assert args.codex_bin == "/usr/bin/my-codex"
+
+    def test_interview_accepts_allow_all(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["interview", "--allow-all"])
+        assert args.allow_all is True
 
 
 class TestMain:

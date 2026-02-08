@@ -6,6 +6,7 @@ import json
 import shutil
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from spec_orca.backend import Backend
@@ -138,8 +139,42 @@ class ClaudeCodeBackend(Backend):
             structured_output=result.structured_output,
         )
 
+    def chat(self, prompt: str, *, cwd: Path | None = None) -> str:
+        """Send a conversational prompt and return raw text (no structured output)."""
+        executable = self._resolve_executable()
+        if executable is None:
+            return f"Error: Claude Code CLI not found: '{self._executable}'"
+
+        cmd = self._build_chat_command(executable, prompt)
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=self._timeout,
+                cwd=cwd,
+            )
+        except subprocess.TimeoutExpired:
+            return f"Error: Claude Code timed out after {self._timeout} seconds."
+
+        if proc.returncode != 0:
+            output = proc.stderr.strip() or proc.stdout.strip() or f"Exit code {proc.returncode}"
+            return f"Error: Claude Code failed (exit {proc.returncode}): {output}"
+
+        return proc.stdout.strip()
+
     def _resolve_executable(self) -> str | None:
         return shutil.which(self._executable)
+
+    def _build_chat_command(self, executable: str, prompt: str) -> list[str]:
+        cmd = [executable, "-p", "--output-format", "text", prompt]
+        if self._max_turns is not None:
+            cmd.extend(["--max-turns", str(self._max_turns)])
+        if self._max_budget_usd is not None:
+            cmd.extend(["--max-budget-usd", str(self._max_budget_usd)])
+        if self._no_session_persistence:
+            cmd.append("--no-session-persistence")
+        return cmd
 
     def _build_command(self, executable: str, prompt: str) -> list[str]:
         cmd = [
