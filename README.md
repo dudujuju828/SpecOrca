@@ -243,16 +243,26 @@ through a structured conversation flow:
 At the end of the session the gathered requirements are compiled into a valid
 spec YAML file that can be fed directly into `spec-orca run`.
 
+Prerequisites:
+- Install the package: `pip install -e .` (or `pip install spec-orca`)
+- The default backend is `claude`, which requires
+  [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and
+  on `PATH` (`claude -v` should work).
+
 ```bash
-# Start an interview with the mock backend
+# Start an interview (uses the claude backend by default)
 spec-orca interview
 
-# Use a real backend for smarter follow-up questions
-spec-orca interview --backend claude
-
 # Save the generated spec to a file automatically
-spec-orca interview --backend claude --output spec.yaml
+spec-orca interview --output spec.yaml
+
+# Use the mock backend (no AI, for testing)
+spec-orca interview --backend mock
 ```
+
+Type `quit` or `exit` (or press Ctrl+C) to end the session. If you provided
+`--output`, the spec is saved automatically; otherwise you will be prompted
+for a save path.
 
 ## Development
 

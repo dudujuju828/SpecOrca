@@ -170,11 +170,11 @@ def build_parser() -> argparse.ArgumentParser:
     interview_parser.add_argument(
         "--backend",
         type=str,
-        default=None,
+        default="claude",
         choices=["claude", "codex", "mock"],
         help=(
             "Backend to use for the interview. "
-            "Overrides the SPEC_ORCA_BACKEND env var. Default: mock."
+            "Overrides the SPEC_ORCA_BACKEND env var. Default: claude."
         ),
     )
     interview_parser.add_argument(
